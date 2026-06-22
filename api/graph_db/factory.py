@@ -47,7 +47,6 @@ class GraphDatabaseFactory:
 
     @staticmethod
     def _create_falkordb() -> GraphDatabase:
-        """Create a FalkorDB GraphDatabase instance."""
         try:
             from api.graph_db.impl.falkordb import FalkorDBGraphDatabase
         except ImportError as e:
