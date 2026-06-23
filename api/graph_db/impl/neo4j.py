@@ -160,6 +160,45 @@ class Neo4jGraphDatabase(GraphDatabase):
                 logger.error(f"Query execution failed: {str(e)}")
         else:
             return [self.database]
+        
+    async def search_similar_nodes(self, database_name: str, query_embedding: List[float], limit: int = 5) -> List[Dict[str, Any]]:
+        db_node_name = f"Database {database_name}"
+        
+        cypher_query = """
+            CALL db.index.vector.queryNodes('Query_embeddings_index', 10, $embedding)
+            YIELD node, score
+            MATCH (db:Entity {name: $db_name})-[r]->(node)
+            RETURN node {
+                .user_query,
+                .sql_query,
+                .success,
+                .error
+            } AS query
+            ORDER BY score DESC
+            LIMIT $limit
+        """
+        
+        params = {
+            "db_name": db_node_name,
+            "embedding": query_embedding,
+            "limit": limit
+        }
+
+        try:
+            records = await self.query(cypher_query, params)
+            
+            similar_queries = []
+            if records:
+                for record in records:
+                    if isinstance(record, (list, tuple)) and len(record) > 0:
+                        similar_queries.append(record[0])
+                    elif isinstance(record, dict):
+                        similar_queries.append(record.get("query") or record)
+                        
+            return similar_queries
+        except Exception as e:
+            logger.error(f"Neo4j Vector Search Error: {e}")
+            return []
                 
     @property
     def db_type(self) -> str:

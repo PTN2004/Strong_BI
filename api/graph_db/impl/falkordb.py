@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List
 
 from falkordb import FalkorDB
 
@@ -114,6 +114,45 @@ class FalkorDBGraphDatabase(GraphDatabase):
         except Exception as e:
             logger.error(f"Error retrieving graph list in FalkorDB: {str(e)}")
             raise
+        
+    async def search_similar_nodes(self, database_name: str, query_embedding: List[float], limit: int = 5) -> List[Dict[str, Any]]:
+        db_node_name = f"Database {database_name}"
+        
+        cypher_query = """
+            CALL db.idx.vector.queryNodes('Query', 'embeddings', 10, vecf32($embedding))
+            YIELD node, score
+            MATCH (db:Entity {name: $db_name})-[r]->(node)
+            RETURN node {
+                .user_query,
+                .sql_query,
+                .success,
+                .error
+            } AS query
+            ORDER BY score ASC
+            LIMIT $limit
+        """
+        
+        params = {
+            "db_name": db_node_name,
+            "embedding": query_embedding,
+            "limit": limit
+        }
+
+        try:
+            records = await self.query(cypher_query, params)
+            
+            similar_queries = []
+            if records:
+                for record in records:
+                    if isinstance(record, (list, tuple)) and len(record) > 0:
+                        similar_queries.append(record[0])
+                    elif isinstance(record, dict):
+                        similar_queries.append(record.get("query") or record)
+                        
+            return similar_queries
+        except Exception as e:
+            logger.error(f"FalkorDB Vector Search Error: {e}")
+            return []
 
     @property
     def db_type(self) -> str:

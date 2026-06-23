@@ -48,6 +48,15 @@ class GraphDatabase(ABC):
     @abstractmethod
     async def clear_graph(self) -> None:
         ...
+        
+    @abstractmethod
+    async def search_similar_nodes(
+        self, 
+        database_name: str, 
+        query_embedding: List[float], 
+        limit: int = 5
+    ) -> List[Dict[str, Any]]:
+        ...
     
     @property
     @abstractmethod
