@@ -730,7 +730,6 @@ class AzureOpenAIConfig:
         self.embedding_endpoint = os.getenv('AZURE_EMBEDDING_ENDPOINT', self.endpoint)
 
 def get_azure_openai_clients():
-    """Khởi tạo Client cho Azure."""
     config = AzureOpenAIConfig()
     
     if not config.endpoint or not config.api_key:
