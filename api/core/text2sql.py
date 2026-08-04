@@ -2,7 +2,7 @@ import asyncio
 import logging
 import time
 from dataclasses import dataclass
-from typing import Any, AsyncGenerator, Optional, TYPE_CHECKING, Union
+from typing import Any, AsyncGenerator, Optional, Union
 
 from pydantic import BaseModel
 from redis import ResponseError, RedisError
@@ -27,12 +27,11 @@ from api.core.pipeline import (
 )
 from api.agents import AnalysisAgent, RelevancyAgent, FollowUpAgent
 from api.agents.healer_agent import HealerAgent
-from api.graph_db import GraphDatabaseFactory
+from api.agents.chart_agent import ChartAgent
+from api.core.db_resolver import resolver_db
 from api.core.result_models import QueryAnalyst, QueryMetadata, QueryResult, RefreshResult
-from api.graph import find, get_db_description, get_user_rules
-
-if TYPE_CHECKING:
-    from falkordb.asyncio import FalkorDB
+from api.retriever import Retriever
+from api.core.ai_tracer import save_ai_trace
 
 
 async def _create_memory_tool(user_id: str, graph_id: str, db=None):
@@ -41,144 +40,126 @@ async def _create_memory_tool(user_id: str, graph_id: str, db=None):
 
 
 class GraphData(BaseModel):
-    """Graph data model.
-
-    Args:
-        BaseModel (_type_): _description_
-    """
     database: str
 
 
 class ChatRequest(BaseModel):
-    """Chat request model.
-
-    Args:
-        BaseModel (_type_): _description_
-    """
     chat: list[str]
     result: list[str] | None = None
     instructions: str | None = None
     custom_api_key: str | None = None
     custom_model: str | None = None
-    use_user_rules: bool = True  # If True, fetch rules from database; if False, don't use rules
+    custom_api_base: str | None = None
+    use_user_rules: bool = True  
     use_memory: bool = True
 
 
 class ConfirmRequest(BaseModel):
-    """Confirmation request model.
-
-    Args:
-        BaseModel (_type_): _description_
-    """
     sql_query: str
     confirmation: str = ""
     chat: list = []
     custom_api_key: str | None = None
     custom_model: str | None = None
+    custom_api_base: str | None = None
     use_memory: bool = False
 
 
 
 async def get_schema(user_id: str, graph_id: str, db=None):
     namespaced = graph_name(user_id, graph_id)
+    graph = None
     try:
-        graph = resolve_db(db).select_graph(namespaced)
-    except Exception as e:  # pylint: disable=broad-exception-caught
+        graph = resolver_db(db)
+        if db is None:
+            await graph.connect()
+        graph.select_graph(namespaced)
+    except Exception as e:  
         logging.error("Failed to select graph %s: %s", sanitize_log_input(namespaced), e)
+        if graph and db is None:
+            await graph.disconnect()
         raise GraphNotFoundError("Graph not found or database error") from e
 
-    # Build table nodes with columns and table-to-table links (foreign keys)
-    tables_query = """
-    MATCH (t:Table)
-    OPTIONAL MATCH (c:Column)-[:BELONGS_TO]->(t)
-    RETURN t.name AS table, collect(DISTINCT {name: c.name, type: c.type}) AS columns
-    """
-
-    links_query = """
-    MATCH (src_col:Column)-[:BELONGS_TO]->(src_table:Table),
-          (tgt_col:Column)-[:BELONGS_TO]->(tgt_table:Table),
-          (src_col)-[:REFERENCES]->(tgt_col)
-    RETURN DISTINCT src_table.name AS source, tgt_table.name AS target
-    """
-
     try:
-        tables_res = (await graph.query(tables_query)).result_set
-        links_res = (await graph.query(links_query)).result_set
-    except Exception as e:  # pylint: disable=broad-exception-caught
-        logging.error("Error querying graph data for %s: %s", sanitize_log_input(namespaced), e)
-        raise InternalError("Failed to read graph data") from e
+        tables_query = """
+        MATCH (t:Table)
+        OPTIONAL MATCH (c:Column)-[:BELONGS_TO]->(t)
+        RETURN t.name AS table, collect(DISTINCT {name: c.name, type: c.type}) AS columns
+        """
 
-    nodes = []
-    for row in tables_res:
+        links_query = """
+        MATCH (src_col:Column)-[:BELONGS_TO]->(src_table:Table),
+              (tgt_col:Column)-[:BELONGS_TO]->(tgt_table:Table),
+              (src_col)-[:REFERENCES]->(tgt_col)
+        RETURN DISTINCT src_table.name AS source, tgt_table.name AS target
+        """
+
         try:
-            table_name, columns = row
-        except Exception:  # pylint: disable=broad-exception-caught
-            continue
-        # Normalize columns: ensure a list of dicts with name/type
-        if not isinstance(columns, list):
-            columns = [] if columns is None else [columns]
+            tables_res = (await graph.query(tables_query)).result_set
+            links_res = (await graph.query(links_query)).result_set
+        except Exception as e:  
+            logging.error("Error querying graph data for %s: %s", sanitize_log_input(namespaced), e)
+            raise InternalError("Failed to read graph data") from e
 
-        normalized = []
-        for col in columns:
+        nodes = []
+        for row in tables_res:
             try:
-                # col may be a mapping-like object or a simple value
-                if not col:
-                    continue
-                # Some drivers may return a tuple or list for the collected map
-                if isinstance(col, (list, tuple)) and len(col) >= 2:
-                    # try to interpret as (name, type)
-                    name = col[0]
-                    ctype = col[1] if len(col) > 1 else None
-                elif isinstance(col, dict):
-                    name = col.get('name') or col.get('columnName')
-                    ctype = col.get('type') or col.get('dataType')
-                else:
-                    name = str(col)
-                    ctype = None
-
-                if not name:
-                    continue
-
-                normalized.append({"name": name, "type": ctype})
-            except Exception:  # pylint: disable=broad-exception-caught
+                table_name = row.get("table")
+                columns = row.get("columns", [])
+            except Exception:  
+                continue
+            
+            if not table_name:
                 continue
 
-        nodes.append({
-            "id": table_name,
-            "name": table_name,
-            "columns": normalized,
-        })
+            if not isinstance(columns, list):
+                columns = []
 
-    links = []
-    seen = set()
-    for row in links_res:
-        try:
-            source, target = row
-        except Exception:  # pylint: disable=broad-exception-caught
-            continue
-        key = (source, target)
-        if key in seen:
-            continue
-        seen.add(key)
-        links.append({"source": source, "target": target})
+            normalized = []
+            for col in columns:
+                if not isinstance(col, dict):
+                    continue
+                    
+                name = col.get("name")
+                ctype = col.get("type")
 
-    return {"nodes": nodes, "links": links}
+                if name:
+                    normalized.append({"name": name, "type": ctype})
+
+            nodes.append({
+                "id": table_name,
+                "name": table_name,
+                "columns": normalized,
+            })
+
+        links = []
+        seen = set()
+        for row in links_res:
+            source = row.get("source")
+            target = row.get("target")
+            
+            if not source or not target:
+                continue
+                
+            key = (source, target)
+            if key in seen:
+                continue
+            seen.add(key)
+            links.append({"source": source, "target": target})
+
+        return {"nodes": nodes, "links": links}
+    finally:
+        if graph and db is None:
+            await graph.disconnect()
 
 
 @dataclass(frozen=True)
 class _Final:
-    """Sentinel terminating the pipeline generator with a structured result."""
     value: QueryResult
 
 
 async def collect_result(
     gen: AsyncGenerator[Union[dict, _Final], None],
 ) -> QueryResult:
-    """Drain a pipeline generator, returning the final ``QueryResult``.
-
-    Used by SDK consumers that don't care about progress events. Streaming
-    consumers iterate manually so they can serialize each dict event.
-    """
     async for event in gen:
         if isinstance(event, _Final):
             return event.value
@@ -191,7 +172,7 @@ async def _emit_schema_refresh(
     db_url: str,
     operation_type: str,
     *,
-    db: Optional["FalkorDB"] = None,
+    db: Optional[Any] = None,
     mark_final_response: bool = False,
 ) -> AsyncGenerator[dict, None]:
     
@@ -228,7 +209,7 @@ async def _emit_schema_refresh(
         }
 
 
-def _build_query_result(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+def _build_query_result(  
     sql_query: str,
     results: list,
     ai_response: str,
@@ -241,11 +222,20 @@ def _build_query_result(  # pylint: disable=too-many-arguments,too-many-position
     missing_information: str = "",
     ambiguities: str = "",
     explanation: str = "",
+    chart_config: Optional[dict[str, Any]] = None,
     error_message: Optional[str] = None,
 ) -> QueryResult:
-    """Assemble a ``QueryResult`` from the pipeline's loose state."""
+    from api.core.result_models import ChartConfig
+    
+    parsed_chart_config = None
+    if chart_config:
+        parsed_chart_config = ChartConfig(
+            chart_type=chart_config.get("chart_type", ""),
+            option=chart_config.get("option", {})
+        )
+
     return QueryResult(
-        sql_query=sql_query,
+        sql_result=sql_query,
         results=results,
         ai_response=ai_response,
         metadata=QueryMetadata(
@@ -260,6 +250,7 @@ def _build_query_result(  # pylint: disable=too-many-arguments,too-many-position
             ambiguities=ambiguities,
             explanation=explanation,
         ),
+        chart_config=parsed_chart_config,
         error_message=error_message,
     )
 
@@ -268,8 +259,11 @@ async def run_query(
     user_id: str,
     graph_id: str,
     chat_data: Any,
-    db: Optional["FalkorDB"] = None,
+    db: Optional[Any] = None,
 ) -> AsyncGenerator[Union[dict, _Final], None]:
+    
+    retriever = Retriever(graph_id, db)
+    
     overall_start = time.perf_counter()
     namespaced = graph_name(user_id, graph_id)
     queries_history, result_history, instructions, use_user_rules = (
@@ -277,13 +271,13 @@ async def run_query(
     )
     custom_api_key = getattr(chat_data, "custom_api_key", None)
     custom_model = getattr(chat_data, "custom_model", None)
+    custom_api_base = getattr(chat_data, "custom_api_base", None)
     use_memory = getattr(chat_data, "use_memory", False)
     validate_custom_model(custom_model)
 
     logging.info("User Query: %s", sanitize_query(queries_history[-1]))
 
-    # Memory tool created concurrently with relevancy/find work — small perf
-    # win for streaming, harmless for SDK. Lazy-imported via _create_memory_tool.
+    
     memory_tool_task = (
         asyncio.create_task(_create_memory_tool(user_id, namespaced, db=db))
         if use_memory else None
@@ -295,9 +289,9 @@ async def run_query(
         "message": "Step 1: Analyzing user query and generating SQL...",
     }
 
-    db_description, db_url = await get_db_description(namespaced, db=db)
+    db_description, db_url = await retriever.get_db_description()
     user_rules_spec = (
-        await get_user_rules(namespaced, db=db) if use_user_rules else None
+        await retriever.get_user_rules() if use_user_rules else None
     )
     db_type, loader_class = get_database_type_and_loader(db_url)
 
@@ -313,17 +307,30 @@ async def run_query(
         ))
         return
 
-    # Concurrent: relevancy check + table-finding
     find_task = asyncio.create_task(
-        find(namespaced, queries_history, db_description, db=db)
+        retriever.find(queries_history, db_description)
     )
     agent_rel = RelevancyAgent(
-        queries_history, result_history, custom_api_key, custom_model,
+        queries_history, result_history, custom_api_key, custom_model, custom_api_base,
     )
+
     relevancy_task = asyncio.create_task(
         agent_rel.get_answer(queries_history[-1], db_description)
     )
     answer_rel = await relevancy_task
+    
+    await asyncio.to_thread(
+        save_ai_trace,
+        agent_name="RelevancyAgent",
+        input_data={
+            "queries_history": queries_history,
+            "result_history": result_history,
+            "db_description": db_description
+        },
+        output_data={
+            "answer_rel": answer_rel
+        }
+    )
 
     if answer_rel["status"] != "On-topic":
         find_task.cancel()
@@ -349,27 +356,45 @@ async def run_query(
         memory_context = await memory_tool.search_memories(query=queries_history[-1])
 
     agent_an = AnalysisAgent(
-        queries_history, result_history, custom_api_key, custom_model,
+        queries_history, result_history, custom_api_key, custom_model, custom_api_base,
     )
     answer_an = agent_an.get_analysis(
         queries_history[-1], tables, db_description, instructions, memory_context,
         db_type, user_rules_spec,
     )
 
+        
+    await asyncio.to_thread(
+        save_ai_trace,
+        agent_name="AnalysisAgent",
+        input_data={
+            "queries_history": queries_history[-1],
+            "tables": tables,
+            "db_description": db_description,
+            "instructions": instructions,
+            "memory_context": memory_context,
+            
+        },
+        output_data={
+            "answer_an": answer_an
+        }
+    )
+
+    
     yield {
         "type": "sql_query",
-        "data": answer_an["sql_query"],
-        "conf": answer_an["confidence"],
-        "miss": answer_an["missing_information"],
-        "amb": answer_an["ambiguities"],
-        "exp": answer_an["explanation"],
-        "is_valid": answer_an["is_sql_translatable"],
+        "data": answer_an.get("sql_query", ""),
+        "conf": answer_an.get("confidence", 0),
+        "miss": answer_an.get("missing_information", ""),
+        "amb": answer_an.get("ambiguities", ""),
+        "exp": answer_an.get("explanation", ""),
+        "is_valid": answer_an.get("is_sql_translatable", False),
         "final_response": False,
     }
 
-    if not answer_an["is_sql_translatable"]:
+    if not answer_an.get("is_sql_translatable"):
         follow_up_agent = FollowUpAgent(
-            queries_history, result_history, custom_api_key, custom_model,
+            queries_history, result_history, custom_api_key, custom_model, custom_api_base,
         )
         follow_up = follow_up_agent.generate_follow_up_question(
             user_question=queries_history[-1],
@@ -395,7 +420,6 @@ async def run_query(
         ))
         return
 
-    # Auto-quote identifiers using the table set we already loaded.
     known_tables = {t[0] for t in tables} if tables else set()
     sanitized_sql, was_modified = auto_quote_sql_identifiers(
         answer_an["sql_query"], known_tables, db_type,
@@ -454,11 +478,12 @@ async def run_query(
     execution_error_msg = None
     query_results: list = []
     user_readable_response = ""
+    generated_chart_config = None
 
     try:
         try:
             query_results = loader_class.execute_sql_query(sql_query, db_url)
-        except Exception as exec_error:  # pylint: disable=broad-exception-caught
+        except Exception as exec_error:  
             yield {
                 "type": "reasoning_step",
                 "final_response": False,
@@ -512,6 +537,23 @@ async def run_query(
                 "final_response": False,
             }
 
+            try:
+                chart_agent = ChartAgent(custom_api_key=custom_api_key, custom_model=custom_model, custom_api_base=custom_api_base)
+                chart_config = chart_agent.generate_chart_config(
+                    user_query=queries_history[-1],
+                    sql_query=sql_query,
+                    query_results=query_results
+                )
+                if chart_config:
+                    generated_chart_config = chart_config
+                    yield {
+                        "type": "chart_config",
+                        "data": chart_config,
+                        "final_response": False,
+                    }
+            except Exception as e:
+                logging.error("Failed to generate chart config: %s", e)
+
         if is_schema_modifying:
             async for ev in _emit_schema_refresh(
                 loader_class, namespaced, db_url, operation_type,
@@ -541,7 +583,7 @@ async def run_query(
             "final_response": True,
             "message": user_readable_response,
         }
-    except Exception as e:  # pylint: disable=broad-exception-caught
+    except Exception as e:  
         execution_error_msg = str(e)
         logging.error("Error executing SQL query: %s", str(e))  # nosemgrep
         yield {
@@ -582,28 +624,24 @@ async def run_query(
         missing_information=answer_an.get("missing_information", ""),
         ambiguities=answer_an.get("ambiguities", ""),
         explanation=answer_an.get("explanation", ""),
+        chart_config=generated_chart_config,
         error_message=execution_error_msg,
     ))
 
 
-async def run_confirmed(  # pylint: disable=too-many-locals,too-many-branches,too-many-statements
+async def run_confirmed(  
     user_id: str,
     graph_id: str,
     confirm_data: Any,
-    db: Optional["FalkorDB"] = None,
+    db: Optional[Any] = None,
 ) -> AsyncGenerator[Union[dict, _Final], None]:
-    """Execute a user-confirmed destructive SQL operation.
-
-    Same wire-format-+-_Final shape as ``run_query``. Confirmed destructive
-    queries are NOT auto-healed (we just confirmed *this* SQL, not a healed
-    variant), so this path skips the healer entirely.
-    """
+    
     overall_start = time.perf_counter()
     namespaced = graph_name(user_id, graph_id)
 
+    retiever = Retriever(graph_id=graph_id, db=db)
+    
     if is_general_graph(namespaced):
-        # Match streaming refusal: even an explicit CONFIRM cannot run writes
-        # on a demo graph.
         raise InvalidArgumentError(
             "Destructive operations are not allowed on demo graphs"
         )
@@ -613,6 +651,7 @@ async def run_confirmed(  # pylint: disable=too-many-locals,too-many-branches,to
     queries_history = getattr(confirm_data, "chat", []) or []
     custom_api_key = getattr(confirm_data, "custom_api_key", None)
     custom_model = getattr(confirm_data, "custom_model", None)
+    custom_api_base = getattr(confirm_data, "custom_api_base", None)
     validate_custom_model(custom_model)
 
     if not sql_query:
@@ -644,12 +683,9 @@ async def run_confirmed(  # pylint: disable=too-many-locals,too-many-branches,to
     query_results: list = []
 
     try:
-        # Only create the MemoryTool when the caller asks for it. graphiti_core
-        # is in the [server] extra; SDK installs without it would otherwise
-        # ImportError here at runtime.
         if use_memory:
             memory_tool = await _create_memory_tool(user_id, namespaced, db=db)
-        db_description, db_url = await get_db_description(namespaced, db=db)
+        db_description, db_url = await retiever.get_db_description(namespaced, db=db)
         db_type, loader_class = get_database_type_and_loader(db_url)
 
         if not loader_class:
@@ -700,7 +736,7 @@ async def run_confirmed(  # pylint: disable=too-many-locals,too-many-branches,to
 
         yield {"type": "ai_response", "message": user_readable_response}
 
-    except Exception as e:  # pylint: disable=broad-exception-caught
+    except Exception as e:  
         # Wraps both MemoryTool.create failures and driver-specific execution errors.
         execution_error_msg = str(e) or "Error executing query"
         logging.error("Error executing confirmed SQL query: %s", str(e))  # nosemgrep
@@ -729,19 +765,14 @@ async def run_confirmed(  # pylint: disable=too-many-locals,too-many-branches,to
 
 
 async def _resolve_refresh_target(
-    user_id: str, graph_id: str, db: Optional["FalkorDB"] = None,
+    user_id: str, graph_id: str, db: Optional[Any] = None,
 ) -> tuple[str, str]:
-    """Validate refresh prerequisites and return ``(namespaced, db_url)``.
-
-    Raises:
-        InvalidArgumentError: For demo graphs, which are read-only.
-        InternalError: When no source URL is on record for the graph.
-    """
+    retriever = Retriever(graph_id=graph_id, db=db)
     namespaced = graph_name(user_id, graph_id)
     if is_general_graph(namespaced):
         raise InvalidArgumentError("Demo graphs cannot be refreshed")
 
-    _, db_url = await get_db_description(namespaced, db=db)
+    _, db_url = await retriever.get_db_description()
     if not db_url or db_url == "No URL available for this database.":
         raise InternalError("No database URL found for this graph")
 
@@ -749,11 +780,6 @@ async def _resolve_refresh_target(
 
 
 async def refresh_database_schema(user_id: str, graph_id: str, db=None):
-    """
-    Manually refresh the graph schema from the database.
-    This endpoint allows users to manually trigger a schema refresh
-    if they suspect the graph is out of sync with the database.
-    """
     try:
         _, db_url = await _resolve_refresh_target(user_id, graph_id, db=db)
         return await load_database(db_url, user_id, db=db)
@@ -765,22 +791,14 @@ async def refresh_database_schema(user_id: str, graph_id: str, db=None):
 
 
 async def refresh_schema_for_sdk(
-    user_id: str, graph_id: str, db: Optional["FalkorDB"] = None,
+    user_id: str, graph_id: str, db: Optional[Any] = None,
 ) -> RefreshResult:
-    """SDK-facing schema refresh that returns a structured ``RefreshResult``.
-
-    The streaming ``refresh_database_schema`` returns a wire-format generator;
-    SDK callers want a single dataclass back. Both share the same underlying
-    reload via ``load_database_sync``.
-    """
-    # Lazy import to break the circular dep with schema_loader.
-    from api.core.schema_loader import load_database_sync  # pylint: disable=import-outside-toplevel
+    from api.core.schema_loader import load_database_sync  
 
     try:
         _, db_url = await _resolve_refresh_target(user_id, graph_id, db=db)
     except InternalError as e:
-        # SDK contract is to return a RefreshResult, not raise, when the URL
-        # is missing. InvalidArgumentError (demo graph) still propagates.
+
         return RefreshResult(success=False, message=str(e))
 
     try:
@@ -810,8 +828,7 @@ async def delete_database(user_id: str, graph_id: str, db=None):
         raise InvalidArgumentError("Demo graphs cannot be deleted")
 
     try:
-        # Select and delete the graph using the FalkorDB client API
-        graph = resolve_db(db).select_graph(namespaced)
+        graph = resolver_db(db).select_graph(namespaced)
         await graph.delete()
         return {"success": True, "graph": graph_id}
     except ResponseError as re:
@@ -819,9 +836,7 @@ async def delete_database(user_id: str, graph_id: str, db=None):
     except (RedisError, ConnectionError) as e:
         logging.exception("Failed to delete graph %s: %s", sanitize_log_input(namespaced), e)
         raise InternalError("Failed to delete graph") from e
-    except Exception as e:  # pylint: disable=broad-exception-caught
-        # Catch-all so any future driver-specific exception is wrapped into
-        # a consistent API/SDK error contract instead of leaking as a 500.
+    except Exception as e:  
         logging.exception(
             "Unexpected error deleting graph %s: %s", sanitize_log_input(namespaced), e,
         )

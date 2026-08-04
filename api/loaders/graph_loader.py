@@ -1,5 +1,6 @@
 import json
 import tqdm
+import asyncio
 
 from api.graph_db import GraphDatabaseFactory, GraphDatabase
 from api.config import Config
@@ -22,14 +23,11 @@ async def load_to_graph(
         await db.connect()
         should_disconnect = True
         
-    if db.get_db_type() =="neo4j":
-        graph_id = "neo4j"  
-        
     graph = db
     embedding_model = Config.EMBEDDING_MODEL
     vec_len = embedding_model.get_vector_size()
 
-    create_combined_description(entities)
+    await asyncio.to_thread(create_combined_description, entities)
     try:
         graph.select_graph(graph_id)
         try:
@@ -48,14 +46,11 @@ async def load_to_graph(
         except Exception as e:  
             print(f"Error creating vector indices: {str(e)}")
 
-        db_des = generate_db_description(db_name=db_name, table_names=list(entities.keys()))
+        db_des = await asyncio.to_thread(generate_db_description, db_name=db_name, table_names=list(entities.keys()))
         await graph.query(
             """
-            CREATE (d:Database {
-                name: $db_name,
-                description: $description,
-                url: $url
-            })
+            MERGE (d:Database {name: $db_name})
+            SET d.description = $description, d.url = $url
             """,
             {"db_name": db_name, "description": db_des, "url": db_url},
         )
@@ -67,12 +62,10 @@ async def load_to_graph(
 
             await graph.query(
                 f"""
-                CREATE (t:Table {{
-                    name: $table_name,
-                    description: $description,
-                    embedding: {graph.format_vector("embedding")},
-                    foreign_keys: $foreign_keys
-                }})
+                MERGE (t:Table {{name: $table_name}})
+                SET t.description = $description,
+                    t.embedding = {graph.format_vector("embedding")},
+                    t.foreign_keys = $foreign_keys
                 """,
                 {
                     "table_name": table_name,
@@ -123,14 +116,12 @@ async def load_to_graph(
                 await graph.query(
                     f"""
                     MATCH (t:Table {{name: $table_name}})
-                    CREATE (c:Column {{
-                        name: $col_name,
-                        type: $type,
-                        nullable: $nullable,
-                        key_type: $key,
-                        description: $description,
-                        embedding: {graph.format_vector("embedding")}
-                    }})-[:BELONGS_TO]->(t)
+                    MERGE (c:Column {{name: $col_name}})-[:BELONGS_TO]->(t)
+                    SET c.type = $type,
+                        c.nullable = $nullable,
+                        c.key_type = $key,
+                        c.description = $description,
+                        c.embedding = {graph.format_vector("embedding")}
                     """,
                     {
                         "table_name": table_name,

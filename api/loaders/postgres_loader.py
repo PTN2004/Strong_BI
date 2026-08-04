@@ -27,9 +27,6 @@ class PostgreSQLConnectionError(Exception):
 
 
 class PostgresLoader(BaseLoader):
-    """
-    Loader for PostgreSQL databases that connects and extracts schema information.
-    """
 
     SCHEMA_MODIFYING_OPERATIONS = {
         'CREATE', 'ALTER', 'DROP', 'RENAME', 'TRUNCATE'
@@ -156,7 +153,7 @@ class PostgresLoader(BaseLoader):
             logging.error("PostgreSQL connection error: %s", e)
             yield False, "Failed to connect to PostgreSQL database"
         except Exception as e:  
-            logging.error("Error loading PostgreSQL schema: %s", e)
+            logging.exception("Error loading PostgreSQL schema: %s", e)
             yield False, "Failed to load PostgreSQL database schema"
         finally:
             if cursor is not None:

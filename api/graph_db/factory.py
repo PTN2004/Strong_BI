@@ -8,7 +8,8 @@ logger = logging.getLogger(__name__)
 
 
 class GraphDatabaseFactory:
-
+    _instance: Optional[GraphDatabase] = None
+    
     @staticmethod
     def create() -> GraphDatabase:
         neo4j_url = os.getenv("NEO4J_URL", "").strip()
@@ -94,3 +95,19 @@ class GraphDatabaseFactory:
     def get_db_type() -> str:
         neo4j_url = os.getenv("NEO4J_URL", "").strip()
         return "neo4j" if neo4j_url else "falkordb"
+
+    @classmethod
+    async def get_instance(cls) -> GraphDatabase:
+        if cls._instance is None or not cls._instance.is_connected():
+            instance = cls.create() 
+            await instance.connect()
+            cls._instance = instance
+            logger.info(f"Global DB Connection established: {cls._instance.db_type}")
+        return cls._instance
+
+    @classmethod
+    async def close_instance(cls) -> None:
+        if cls._instance is not None and cls._instance.is_connected():
+            await cls._instance.disconnect()
+            cls._instance = None
+            logger.info("Global DB Connection closed")

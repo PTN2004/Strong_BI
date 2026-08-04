@@ -1,0 +1,65 @@
+version: "3.8"
+
+services:
+  # ----------------------------------------------------------------------------
+  # API BACKEND SERVICE
+  # ----------------------------------------------------------------------------
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: strongbi-api-prod
+    restart: always
+    ports:
+      - "5000:5000"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=5000
+      - FASTAPI_DEBUG=False
+      - FALKORDB_URL=redis://falkordb:6379/0
+      # Dưới đây là các biến môi trường cấu hình động qua file .env ngoài thực tế
+      - FASTAPI_SECRET_KEY=${FASTAPI_SECRET_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
+      - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET}
+    depends_on:
+      - falkordb
+    # Hạn chế tài nguyên tránh việc container chiếm dụng quá nhiều RAM/CPU hệ thống
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+    # Cấu hình log xoay vòng (Log Rotation) tránh đầy ổ đĩa ở production
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ----------------------------------------------------------------------------
+  # GRAPH DATABASE SERVICE (FalkorDB làm mặc định)
+  # ----------------------------------------------------------------------------
+  falkordb:
+    image: falkordb/falkordb:latest
+    container_name: strongbi-falkordb-prod
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - falkordb_prod_data:/data
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  falkordb_prod_data:

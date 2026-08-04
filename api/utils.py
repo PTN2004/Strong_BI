@@ -3,6 +3,7 @@ from typing import List, Dict, Optional, TypedDict
 from litellm import batch_completion, completion
 
 from api.config import Config
+from api.agents.utils import filter_thinking_process
 
 
 class ForeignKeyInfo(TypedDict):
@@ -42,7 +43,8 @@ def create_combined_description(
         "You are a database table description generator. "
         "Generate ONE concise sentence starting with the table name, "
         "describing what the table stores, using present tense. "
-        "Do not add explanations."
+        "Do not add explanations. You MUST enclose your final answer inside <description> tags. "
+        "For example: <description>The table users stores...</description>"
     )
     
     user_prompt = (
@@ -76,7 +78,7 @@ def create_combined_description(
             model=Config.COMPLETION_MODEL,
             messages=batch_message,
             temperature=0.0,
-            max_tokens=50
+
         )
         
         for offset, batch_response in enumerate(response):
@@ -90,6 +92,13 @@ def create_combined_description(
                 
             else:
                 msg_content = batch_response.choices[0].message["content"]
+                if msg_content:
+                    import re
+                    match = re.search(r'<description>(.*?)</description>', msg_content, flags=re.DOTALL | re.IGNORECASE)
+                    if match:
+                        msg_content = match.group(1)
+                    else:
+                        msg_content = filter_thinking_process(msg_content)
                 content = msg_content.strip() if msg_content else table_name
                 table_info[table_name]["description"] = content
                 
@@ -100,7 +109,7 @@ def generate_db_description(
     db_name: str,
     table_names: List[str],
     temperature: float = 0.5,
-    max_tokens: int = 150,
+    max_tokens: int = 1024,
 ) -> str:
     
     if not isinstance(db_name, str):
@@ -123,15 +132,15 @@ def generate_db_description(
         tables_formatted = ", ".join(table_names[:-1]) + f", and {table_names[-1]}"
 
     prompt = (
-        f"You are a helpful assistant. Generate a concise description of "
-        f"the database named '{db_name}' which contains the following tables: "
-        f"{tables_formatted}.\n\nDescription:"
+        f"You are a Data Architect. Describe the business domain of the database named '{db_name}' "
+        f"based on these tables: {tables_formatted}.\n\n"
+        f"You MUST enclose your final answer inside <description> tags. "
+        f"For example: <description>This database stores e-commerce information.</description>"
     )
 
     response = completion(
         model=Config.COMPLETION_MODEL,
         messages=[
-            {"role": "system", "content": "You are a helpful assistant."},
             {"role": "user", "content": prompt},
         ],
         temperature=temperature,
@@ -139,7 +148,17 @@ def generate_db_description(
         n=1,
         stop=None,
     )
-    description = response.choices[0].message["content"]
+    raw_content = response.choices[0].message["content"]
+    if raw_content:
+        import re
+        match = re.search(r'<description>(.*?)</description>', raw_content, flags=re.DOTALL | re.IGNORECASE)
+        if match:
+            description = match.group(1).strip()
+        else:
+            description = filter_thinking_process(raw_content).strip()
+    else:
+        description = f"Database containing {len(table_names)} tables."
+        
     return description
         
     

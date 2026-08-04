@@ -210,7 +210,7 @@ class SQLiteLoader(BaseLoader):
         foreign_keys_raw = cursor.fetchall()
         fk_columns = {fk[3]: fk[2] for fk in foreign_keys_raw}  # Map source_col -> table
 
-        for cid, col_name, data_type, not_null, default_val, is_pk in columns:
+        for cid, col_name, data_type, not_null, default_val, is_pk, *rest in columns:
             col_name = col_name.strip()
 
             # Determine key type
@@ -254,12 +254,12 @@ class SQLiteLoader(BaseLoader):
         foreign_keys_raw = cursor.fetchall()
 
         foreign_keys = []
-        for id_val, seq, table, from_col, to_col, on_delete, on_update in foreign_keys_raw:
+        for id_val, seq, table, from_col, to_col, on_delete, on_update, *rest in foreign_keys_raw:
             foreign_keys.append({
                 'constraint_name': f"fk_{table_name}_{from_col}_{table}_{to_col}",
-                'column': from_col.strip(),
-                'referenced_table': table.strip(),
-                'referenced_column': to_col.strip()
+                'column': from_col.strip() if from_col else "",
+                'referenced_table': table.strip() if table else "",
+                'referenced_column': to_col.strip() if to_col else ""
             })
 
         return foreign_keys
@@ -278,21 +278,21 @@ class SQLiteLoader(BaseLoader):
 
         tables = cursor.fetchall()
 
-        for (table_name,) in tables:
+        for (table_name, *rest) in tables:
             cursor.execute(f'PRAGMA foreign_key_list("{table_name}")')
             foreign_keys_raw = cursor.fetchall()
 
-            for id_val, seq, ref_table, from_col, to_col, on_delete, on_update in foreign_keys_raw:
+            for id_val, seq, ref_table, from_col, to_col, on_delete, on_update, *rest in foreign_keys_raw:
                 constraint_name = f"fk_{table_name}_{from_col}_{ref_table}_{to_col}"
 
                 if constraint_name not in relationships:
                     relationships[constraint_name] = []
 
                 relationships[constraint_name].append({
-                    'from': table_name.strip(),
-                    'to': ref_table.strip(),
-                    'source_column': from_col.strip(),
-                    'target_column': to_col.strip(),
+                    'from': table_name.strip() if table_name else "",
+                    'to': ref_table.strip() if ref_table else "",
+                    'source_column': from_col.strip() if from_col else "",
+                    'target_column': to_col.strip() if to_col else "",
                     'note': f'Foreign key constraint: {constraint_name}'
                 })
 

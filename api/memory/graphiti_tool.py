@@ -7,7 +7,7 @@ from datetime import datetime
 from redis import Redis
 
 from litellm import completion
-from openai import AsyncAzureOpenAI
+from openai import AsyncOpenAI
 from graphiti_core import Graphiti
 from graphiti_core.nodes import EpisodeType
 from graphiti_core.llm_client import OpenAIClient, LLMConfig
@@ -18,6 +18,7 @@ from graphiti_core.search.search_config_recipes import NODE_HYBRID_SEARCH_RRF
 from api.graph_db import GraphDatabaseFactory
 from api.core.db_resolver import resolver_db
 from api.config import Config
+from api.agents.utils import filter_thinking_process
 
 def extract_model_name(full_model_name:str) -> str:
     if '/' in full_model_name:
@@ -46,7 +47,7 @@ class MemoryTool:
             
             graph_driver = Neo4jDriver(
                 uri=self._db.uri,
-                username=self._db.username,
+                user=self._db.username,
                 password=self._db.password,
                 database=self.memory_name
             )
@@ -152,7 +153,7 @@ class MemoryTool:
             
             user_check_result = await self._db.query(check_user_query, {"name": user_node_name})
             
-            if not user_check_result:  
+            if not user_check_result or not getattr(user_check_result, 'result_set', None):  
                 user_uuid = str(uuid.uuid4())
                 user_name_embedding = Config.EMBEDDING_MODEL.embed(user_node_name)[0]
                 
@@ -185,7 +186,7 @@ class MemoryTool:
             
             database_check_result = await self._db.query(check_database_query, {"name": database_node_name})
             
-            if not database_check_result:
+            if not database_check_result or not getattr(database_check_result, 'result_set', None):
                 database_uuid = str(uuid.uuid4())
                 database_name_embedding = Config.EMBEDDING_MODEL.embed(database_node_name)[0]
                 
@@ -244,8 +245,8 @@ class MemoryTool:
             summary_result = await self._db.query(query_get, {"user_id": self.user_id})
             
             summary = ""
-            if summary_result and len(summary_result) > 0:
-                first_row = summary_result[0]
+            if summary_result and getattr(summary_result, 'result_set', None) and len(summary_result.result_set) > 0:
+                first_row = summary_result.result_set[0]
                 if isinstance(first_row, dict):
                     summary = first_row.get("summary", "")
                 else:
@@ -284,11 +285,14 @@ class MemoryTool:
                 """
 
             # 4. Chuẩn bị Messages cho LLM
-            if len(history[1]) == 0:
+            h_queries = history[0] if history and len(history) > 0 and history[0] else []
+            h_results = history[1] if history and len(history) > 1 and history[1] else []
+            
+            if len(h_results) == 0:
                 messages = [{"role": "user", "content": prompt}]
             else:
                 messages = []
-                for query_hist, result_hist in zip(history[0], history[1]):
+                for query_hist, result_hist in zip(h_queries, h_results):
                     messages.append({"role": "user", "content": query_hist})
                     messages.append({"role": "assistant", "content": result_hist})
                 messages.append({"role": "user", "content": prompt})
@@ -299,7 +303,7 @@ class MemoryTool:
                 temperature=0.1
             )
             
-            content = response.choices[0].message.content.strip()
+            content = filter_thinking_process(response.choices[0].message.content)
 
             query_set = """
                 MATCH (u:Entity {name: $user_id})
@@ -376,8 +380,11 @@ class MemoryTool:
         try:
             messages = []
             
-            if history and len(history) == 2 and len(history[0]) > 0:
-                for query_hist, result_hist in zip(history[0], history[1]):
+            h_queries = history[0] if history and len(history) > 0 and history[0] else []
+            h_results = history[1] if history and len(history) > 1 and history[1] else []
+            
+            if h_queries and h_results:
+                for query_hist, result_hist in zip(h_queries, h_results):
                     messages.append({"role": "user", "content": query_hist})
                     messages.append({"role": "assistant", "content": result_hist})
             
@@ -389,7 +396,7 @@ class MemoryTool:
                 temperature=0.1
             )
             
-            content = response.choices[0].message.content.strip()
+            content = filter_thinking_process(response.choices[0].message.content)
             return {
                 "database_summary": content
             }
@@ -456,23 +463,42 @@ class MemoryTool:
         
     
     async def retrieve_similar_queries(self, query: str, limit: int = 5) -> List[Dict[str, Any]]:
-        if not self.memory_enabled:
-            return []
-            
-        try:
-            query_embedding = Config.EMBEDDING_MODEL.embed(query)[0]
+            if not self.memory_enabled:
+                return []
+                
+            try:
+                database_node_name = f"Database {self.graph_id}"
+                
+                node_search_config = NODE_HYBRID_SEARCH_RRF.model_copy(deep=True)
+                node_search_config.limit = 1
+                
+                database_node_results = await self.graphiti_client.search_(
+                    query=database_node_name,
+                    config=node_search_config,
+                )
 
-            similar_queries = await self._db.search_similar_nodes(
-                database_name=self.graph_id,
-                query_embedding=query_embedding,
-                limit=limit
-            )
-            
-            return similar_queries
+                database_node_uuid = None
+                if database_node_results and database_node_results.nodes:
+                    for node in database_node_results.nodes:
+                        if node.name == database_node_name:
+                            database_node_uuid = node.uuid
+                            break
+                            
+                if not database_node_uuid:
+                    return []
 
-        except Exception as e:
-            logging.error(f"Not found vector (retrieve_similar_queries): {e}")
-            return []
+                query_embedding = Config.EMBEDDING_MODEL.embed(query)[0]
+                similar_queries = await self._db.search_similar_queries_by_uuid(
+                    db_uuid=database_node_uuid,
+                    embedding=query_embedding,
+                    limit=limit
+                )
+                
+                return similar_queries
+
+            except Exception as e:
+                logging.error(f"Lỗi khi retrieve_similar_queries: {e}")
+                return []
         
     async def search_user_summary(self, limit: int = 5) -> str:
         if not self.memory_enabled:
@@ -484,8 +510,8 @@ class MemoryTool:
                     RETURN e.summary AS summary
                     """
             result = await self._db.query(query, {"name": self.user_id})
-            if result and len(result) > 0:
-                first_row = result[0]
+            if result and getattr(result, 'result_set', None) and len(result.result_set) > 0:
+                first_row = result.result_set[0]
                 if isinstance(first_row, dict):
                     return first_row.get("summary", "")
                     
@@ -517,8 +543,8 @@ class MemoryTool:
 
             episode_contents = []
             
-            if results:
-                for row in results:
+            if results and getattr(results, 'result_set', None):
+                for row in results.result_set:
                     content = None
                     if isinstance(row, dict):
                         content = row.get("content")
@@ -548,8 +574,8 @@ class MemoryTool:
             db_result = await self._db.query(cypher_query, {"name": db_node_name})
             
             center_node_uuid = ""
-            if db_result and len(db_result) > 0:
-                first_row = db_result[0]
+            if db_result and getattr(db_result, 'result_set', None) and len(db_result.result_set) > 0:
+                first_row = db_result.result_set[0]
                 if isinstance(first_row, dict):
                     center_node_uuid = first_row.get("uuid", "")
                 elif isinstance(first_row, (list, tuple)) and len(first_row) > 0:
@@ -735,13 +761,13 @@ def get_azure_openai_clients():
     if not config.endpoint or not config.api_key:
         raise ValueError("Thiếu biến môi trường AZURE_API_BASE hoặc AZURE_API_KEY")
     
-    llm_client_azure = AsyncAzureOpenAI(
+    llm_client_azure = AsyncOpenAI(
         api_key=config.api_key,
         api_version=config.api_version,
         azure_endpoint=config.endpoint,
     )
 
-    embedding_client_azure = AsyncAzureOpenAI(
+    embedding_client_azure = AsyncOpenAI(
         api_key=config.api_key,
         api_version=config.api_version,
         azure_endpoint=config.embedding_endpoint,
@@ -778,16 +804,35 @@ def create_graphiti_client(graph_driver: Any) -> Optional[Graphiti]:
                 ),
             )
             
-        elif llm_provider == "openai":
+        elif llm_provider in ["openai", "ollama", "vllm"]:
             embedding_model_name = extract_model_name(getattr(Config, 'EMBEDDING_MODEL_NAME', 'text-embedding-3-small'))
+            llm_model_name = extract_model_name(getattr(Config, 'COMPLETION_MODEL', 'gpt-4o'))
+            
+
+            llm_api_base = os.getenv('VLLM_API_BASE') or os.getenv('OPENAI_API_BASE')
+            llm_api_key = os.getenv('VLLM_API_KEY') or os.getenv('OPENAI_API_KEY') or 'dummy-key'
+            
+            custom_llm_client = AsyncOpenAI(api_key=llm_api_key, base_url=llm_api_base)
+            
+            emb_api_base = os.getenv('EMBEDDING_API_BASE') or llm_api_base
+            custom_emb_client = AsyncOpenAI(api_key=llm_api_key, base_url=emb_api_base)
 
             return Graphiti(
                 graph_driver=graph_driver, 
+                llm_client=OpenAIClient(
+                    config=LLMConfig(model=llm_model_name, small_model=llm_model_name),
+                    client=custom_llm_client
+                ),
                 embedder=OpenAIEmbedder(
                     config=OpenAIEmbedderConfig(
                         embedding_model=embedding_model_name,
                         embedding_dim=1536
-                    )
+                    ),
+                    client=custom_emb_client
+                ),
+                cross_encoder=OpenAIRerankerClient(
+                    config=LLMConfig(model=llm_model_name, small_model=llm_model_name),
+                    client=custom_llm_client,
                 ),
             )
             

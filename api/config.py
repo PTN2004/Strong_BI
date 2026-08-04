@@ -7,6 +7,23 @@ from litellm import embedding
 
 load_dotenv()
 
+# Tự động đồng bộ các biến môi trường cho các engine tự host (vLLM, Ollama)
+openai_api_base = os.getenv("OPENAI_API_BASE")
+if openai_api_base:
+    openai_api_base = openai_api_base.strip()
+    if not os.getenv("VLLM_API_BASE"):
+        os.environ["VLLM_API_BASE"] = openai_api_base
+    if not os.getenv("OLLAMA_API_BASE") and "11434" in openai_api_base:
+        os.environ["OLLAMA_API_BASE"] = openai_api_base
+
+# Đảm bảo có api_key placeholder cho các model OpenAI-compatible tự host (như vLLM) nếu chưa cấu hình key nào
+if (os.getenv("VLLM_MODEL") or os.getenv("OLLAMA_MODEL")) and not os.getenv("OPENAI_API_KEY"):
+    os.environ["OPENAI_API_KEY"] = "none"
+
+vllm_api_key = os.getenv("VLLM_API_KEY") or os.getenv("OPENAI_API_KEY")
+if vllm_api_key and not os.getenv("VLLM_API_KEY"):
+    os.environ["VLLM_API_KEY"] = vllm_api_key
+
 def configure_litellm_logging():
     litellm_logging = logging.getLogger("LiteLLM")
     litellm_logging.setLevel(logging.ERROR)
@@ -20,14 +37,35 @@ class EmbeddingsModel:
         self.config = config
         
     def embed(self, text: Union[str, list]) -> list:
-        embeddings = embedding(self.model_name, input=text)
-        embeddings = [embedding["embeddings"] for embedding in embeddings.data]
-        return embeddings
+        api_base = os.getenv("EMBEDDING_API_BASE") or os.getenv("OPENAI_API_BASE")
+        embeddings = embedding(self.model_name, input=text, api_base=api_base)
+        result_embeddings = []
+        for data_item in embeddings.data:
+            if "embedding" in data_item:
+                result_embeddings.append(data_item["embedding"])
+            elif "embeddings" in data_item:
+                result_embeddings.append(data_item["embeddings"])
+            else:
+                # fallback to dict keys / index if keys differ
+                keys = list(data_item.keys()) if hasattr(data_item, "keys") else []
+                if keys:
+                    result_embeddings.append(data_item[keys[0]])
+        return result_embeddings
     
     def get_vector_size(self):
-        embed = embedding(model=self.model_name, input=["Hello World"])
-        size = len(embed.data[0]["embedding"])
-        return size
+        api_base = os.getenv("EMBEDDING_API_BASE") or os.getenv("OPENAI_API_BASE")
+        embed = embedding(model=self.model_name, input=["Hello World"], api_base=api_base)
+        # Handle dynamic response keys for getting vector size
+        first_data = embed.data[0]
+        if "embedding" in first_data:
+            return len(first_data["embedding"])
+        elif "embeddings" in first_data:
+            return len(first_data["embeddings"])
+        else:
+            keys = list(first_data.keys()) if hasattr(first_data, "keys") else []
+            if keys:
+                return len(first_data[keys[0]])
+            return 1536  # Default fallback size
     
 
 def _with_prefix(model:str, provider:str):
@@ -45,16 +83,17 @@ class Config:
         LLM_PROVIDER = "vllm"
         AZURE_FLAG = False
         COMPLETION_MODEL = _user_completion or _with_prefix(
-            os.getenv("VLLM_MODEL"), "vllm")
+            os.getenv("VLLM_MODEL"), "custom_openai")
+        # VLLM sử dụng API OpenAI-compatible cho embedding, LiteLLM yêu cầu prefix 'openai'
         EMBEDDING_MODEL_NAME = _user_embedding or _with_prefix(
-            os.getenv("VLLM_EMBEDDING_MODEL", "nomic-embed-text"), "vllm")
+            os.getenv("VLLM_EMBEDDING_MODEL", "nomic-embed-text"), "openai")
     elif os.getenv("OLLAMA_MODEL"):
         LLM_PROVIDER = "ollama"
         AZURE_FLAG = False
         COMPLETION_MODEL = _user_completion or _with_prefix(
-            os.getenv("OLLAMA_MODEL"), "ollama")
+            os.getenv("OLLAMA_MODEL"), "custom_openai")
         EMBEDDING_MODEL_NAME = _user_embedding or _with_prefix(
-            os.getenv("OLLAMA_EMBEDDING_MODEL", "nomic-embed-text"), "ollama")
+            os.getenv("OLLAMA_EMBEDDING_MODEL", "nomic-embed-text"), "openai")
     elif os.getenv("OPENAI_API_KEY"):
         LLM_PROVIDER = "openai"
         AZURE_FLAG = False

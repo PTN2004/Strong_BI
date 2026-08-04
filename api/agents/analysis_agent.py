@@ -16,9 +16,8 @@ class AnalysisAgent(BaseAgent):
         database_type: str | None = None,
         user_rules_spec: str | None = None,
     ) -> dict:
-        """Get analysis of user query against database schema."""
+
         formatted_schema = self._format_schema(combined_tables)
-        # Add system message with database type if not already present
         if not self.messages or self.messages[0].get("role") != "system":
             self.messages.insert(0, {
                 "role": "system",
@@ -35,42 +34,57 @@ class AnalysisAgent(BaseAgent):
         self.messages.append({"role": "user", "content": prompt})
 
         response = run_completion(
-            self.messages, self.custom_model, self.custom_api_key, temperature=0
+            self.messages, self.custom_model, self.custom_api_key, self.custom_api_base, temperature=0
         )
         analysis = parse_response(response)
-        if isinstance(analysis["ambiguities"], list):
-            analysis["ambiguities"] = [
-                item.replace("-", " ") for item in analysis["ambiguities"]
-            ]
-            analysis["ambiguities"] = "- " + "- ".join(analysis["ambiguities"])
-        if isinstance(analysis["missing_information"], list):
-            analysis["missing_information"] = [
-                item.replace("-", " ") for item in analysis["missing_information"]
-            ]
-            analysis["missing_information"] = "- " + "- ".join(
-                analysis["missing_information"]
-            )
-        self.messages.append({"role": "assistant", "content": analysis["sql_query"]})
+        
+        # Ensure keys exist
+        if "ambiguities" not in analysis:
+            analysis["ambiguities"] = "- "
+        elif isinstance(analysis["ambiguities"], list):
+            if not analysis["ambiguities"]:
+                analysis["ambiguities"] = "- "
+            else:
+                analysis["ambiguities"] = [
+                    item.replace("-", " ") for item in analysis["ambiguities"]
+                ]
+                analysis["ambiguities"] = "- " + "- ".join(analysis["ambiguities"])
+                
+        if "missing_information" not in analysis:
+            analysis["missing_information"] = "- "
+        elif isinstance(analysis["missing_information"], list):
+            if not analysis["missing_information"]:
+                analysis["missing_information"] = "- "
+            else:
+                analysis["missing_information"] = [
+                    item.replace("-", " ") for item in analysis["missing_information"]
+                ]
+                analysis["missing_information"] = "- " + "- ".join(
+                    analysis["missing_information"]
+                )
+                
+        # Default fallback for sql_query
+        if "sql_query" not in analysis:
+            analysis["sql_query"] = ""
+
+        self.messages.append({"role": "assistant", "content": analysis.get("sql_query", "")})
         return analysis
 
     def _format_schema(self, schema_data: List) -> str:
-        """
-        Format the schema data into a readable format for the prompt.
-
-        Args:
-            schema_data: Schema in the structure [...]
-
-        Returns:
-            Formatted schema as a string
-        """
+       
         formatted_schema = []
+        current_len = 0
+        max_len = 8000
 
         for table_info in schema_data:
             table_str = self._format_single_table(table_info)
+            if current_len + len(table_str) > max_len:
+                formatted_schema.append("... [TRUNCATED due to length limits]")
+                break
             formatted_schema.append(table_str)
+            current_len += len(table_str)
 
         return "\n".join(formatted_schema)
-
     def _format_single_table(self, table_info: List) -> str:
         """
         Format a single table's information.
@@ -130,11 +144,11 @@ class AnalysisAgent(BaseAgent):
         col_key = column.get("keyType", None)
         nullable = column.get("nullable", False)
 
-        key_info = (
-            ", PRIMARY KEY"
-            if col_key == "PRI"
-            else ", FOREIGN KEY" if col_key == "FK" else ""
-        )
+        key_info = ""
+        if col_key in ("PRI", "PRIMARY KEY"):
+            key_info = ", PRIMARY KEY"
+        elif col_key in ("FK", "FOREIGN KEY"):
+            key_info = ", FOREIGN KEY"
         return (f"  - {col_name} ({col_type},{key_info},{col_key},"
                f"{nullable}): {col_description}")
 

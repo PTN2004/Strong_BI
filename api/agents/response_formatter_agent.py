@@ -43,7 +43,7 @@ class ResponseFormatterAgent:
     """Agent for generating user-readable responses from SQL query results."""
 
     def __init__(self, queries_history: List[str] = None, result_history: List[str] = None,
-                 custom_api_key: str = None, custom_model: str = None):
+                 custom_api_key: str = None, custom_model: str = None, custom_api_base: str = None):
         """Initialize the response formatter agent.
         
         Args:
@@ -55,28 +55,18 @@ class ResponseFormatterAgent:
         self.queries_history = queries_history or []
         self.result_history = result_history or []
         self.custom_api_key = custom_api_key
+        self.custom_api_base = custom_api_base
         self.custom_model = custom_model
 
     def format_response(self, user_query: str, sql_query: str,
                        query_results: List[Dict], db_description: str = "") -> str:
-        """
-        Generate a user-readable response based on the SQL query results.
-
-        Args:
-            user_query: The original user question
-            sql_query: The SQL query that was executed
-            query_results: The results from the SQL query execution
-            db_description: Description of the database context
-
-        Returns:
-            A formatted, user-readable response string
-        """
+        
         prompt = self._build_response_prompt(user_query, sql_query, query_results, db_description)
 
         messages = [{"role": "user", "content": prompt}]
 
         response = run_completion(
-            messages, self.custom_model, self.custom_api_key,
+            messages, self.custom_model, self.custom_api_key, self.custom_api_base,
             temperature=0.3  # Slightly higher temperature for more natural responses
         )
         return response.strip()

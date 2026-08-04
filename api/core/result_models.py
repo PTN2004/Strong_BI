@@ -5,7 +5,7 @@ from typing import Any, Optional
 @dataclass
 class QueryMetadata:
     confidence: float = 0.0
-    excution_time: float = 0.0
+    execution_time: float = 0.0
     is_valid: bool = True
     is_destructive: bool = False  # If have create, insert, delete
     requires_confirmation: bool = False
@@ -16,21 +16,31 @@ class QueryMetadata:
     
 @dataclass
 class QueryAnalyst:
-    missing_infomation: str = ""
+    missing_information: str = ""
     ambiguities:str = ""
-    explantation:str = ""
+    explanation:str = ""
     
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
   
     
 @dataclass
+class ChartConfig:
+    chart_type: str = ""
+    option: dict[str, Any] = field(default_factory=dict)
+    
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
 class QueryResult:
     sql_result: str
     results:list[dict[str]]
     ai_response: str
     metadata: QueryMetadata = field(default_factory=QueryMetadata)
-    analyst: QueryAnalyst = field(default_factory=QueryAnalyst)
+    analysis: QueryAnalyst = field(default_factory=QueryAnalyst)
+    chart_config: Optional[ChartConfig] = None
     error_message: Optional[str] = None
     
     def to_dict(self) -> dict[str, Any]:
@@ -39,8 +49,10 @@ class QueryResult:
            "results": self.results,
            "ai_response": self.ai_response,
         }
+        if self.chart_config:
+            result["chart_config"] = self.chart_config.to_dict()
         result.update(self.metadata.to_dict())
-        result.update(self.analyst.to_dict())
+        result.update(self.analysis.to_dict())
         
         return result
     
@@ -49,8 +61,8 @@ class QueryResult:
         return self.metadata.confidence
     
     @property
-    def excute_time(self) -> float:
-        return self.metadata.excution_time
+    def execution_time(self) -> float:
+        return self.metadata.execution_time
     
     @property
     def is_destructive(self) -> bool:
@@ -65,16 +77,16 @@ class QueryResult:
         return self.metadata.requires_confirmation
     
     @property
-    def missing_infomation(self) -> str:
-        return self.analyst.missing_infomation
+    def missing_information(self) -> str:
+        return self.analysis.missing_information
     
     @property
     def ambiguities(self) -> str:
-        return self.analyst.ambiguities
+        return self.analysis.ambiguities
     
     @property
-    def expplaintion(self) -> str:
-        return self.analyst.explantation
+    def explanation(self) -> str:
+        return self.analysis.explanation
 
 
 @dataclass
@@ -89,7 +101,7 @@ class SchemaResult:
 @dataclass
 class DatabaseConnection:
     database_id: str
-    cuccess: bool
+    success: bool
     table_load: int = 0
     message: str = ""
     

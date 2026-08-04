@@ -217,9 +217,10 @@ def format_ai_response(
     db_description: str,
     custom_api_key: Optional[str] = None,
     custom_model: Optional[str] = None,
+    custom_api_base: Optional[str] = None,
 ) -> str:
     agent = ResponseFormatterAgent(
-        queries_history, result_history, custom_api_key, custom_model,
+        queries_history, result_history, custom_api_key, custom_model, custom_api_base,
     )
     return agent.format_response(
         user_query=queries_history[-1] if queries_history else "",

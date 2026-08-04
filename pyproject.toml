@@ -26,6 +26,7 @@ dependencies = [
     "snowflake-connector-python~=4.4.0",
     "python-dotenv~=1.2.2",
     "aiohttp>=3.13.5",
+    "sqlalchemy>=2.0.51",
 ]
 
 [build-system]

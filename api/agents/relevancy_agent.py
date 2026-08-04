@@ -65,12 +65,7 @@ Remember: **Prioritize the conversation’s actionable data intent over phrasing
 
 
 class RelevancyAgent(BaseAgent):
-    # pylint: disable=too-few-public-methods
-    """Agent for determining relevancy of queries to database schema."""
-
-
     async def get_answer(self, user_question: str, database_desc: dict) -> dict:
-        """Get relevancy assessment for user question against database description."""
         self.messages.append(
             {
                 "role": "user",
@@ -82,7 +77,7 @@ class RelevancyAgent(BaseAgent):
         )
 
         answer = run_completion(
-            self.messages, self.custom_model, self.custom_api_key, temperature=0
+            self.messages, self.custom_model, self.custom_api_key, self.custom_api_base, temperature=0
         )
         self.messages.append({"role": "assistant", "content": answer})
         return parse_response(answer)

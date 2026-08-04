@@ -144,11 +144,16 @@ async def list_databases(user_id: str, general_prefix: Optional[str] = None, db=
         user_graphs = await graph.list_graph()
 
         # Only include graphs that start with user_id + '_', and strip the prefix
-        filtered_graphs = [
-            graph[len(f"{user_id}_"):]
-            for graph in user_graphs
-            if graph.startswith(f"{user_id}_")
-        ]
+        if type(graph).__name__ == "Neo4jGraphDatabase" and not getattr(graph, "is_enterprise", False):
+            # Neo4j CE: We distinguish user graphs via Database nodes created by Graphiti
+            res = await graph.query("MATCH (d:Database) RETURN DISTINCT d.name as name", {})
+            filtered_graphs = [r["name"] for r in res.result_set if isinstance(r, dict) and "name" in r]
+        else:
+            filtered_graphs = [
+                graph_name[len(f"{user_id}_"):]
+                for graph_name in user_graphs
+                if graph_name.startswith(f"{user_id}_")
+            ]
 
         if general_prefix:
             demo_graphs = [

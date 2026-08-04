@@ -1,13 +1,3 @@
-"""
-HealerAgent - Specialized agent for fixing SQL syntax errors.
-
-This agent focuses solely on correcting SQL queries that failed execution,
-without requiring full graph context. It uses the error message and the
-failed query to generate a corrected version.
-"""
-# pylint: disable=trailing-whitespace,line-too-long,too-many-arguments
-# pylint: disable=too-many-positional-arguments,broad-exception-caught
-
 import re
 from typing import Dict, Callable, Any
 from litellm import completion
