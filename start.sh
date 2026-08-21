@@ -87,8 +87,11 @@ if [ -d "db-seed" ] && [ ! -f ".db_seeded" ]; then
             # Tạo database nếu chưa có (Neo4j sẽ tự động tạo cấu trúc khi load nếu db chưa tồn tại)
             # Dừng database
             docker exec strongbi-neo4j cypher-shell -u neo4j -p password123 -d system "STOP DATABASE \`$DB_NAME\`;" >/dev/null 2>&1 || true
-            # Nạp dữ liệu từ dump (chấp nhận đè data cũ)
+            # Nạp dữ liệu từ dump (chấp nhận đè data cũ) - sử dụng user neo4j nếu có thể, hoặc chown sau đó
             docker exec strongbi-neo4j neo4j-admin database load $DB_NAME --from-path=/var/lib/neo4j/import --overwrite-destination=true >/dev/null 2>&1 || echo "⚠️ Lỗi khi load $DB_NAME"
+            # Cấp lại quyền cho neo4j
+            docker exec strongbi-neo4j chown -R neo4j:neo4j /data/databases
+            docker exec strongbi-neo4j chown -R neo4j:neo4j /data/transactions
             # Tạo mới database trên system (nếu đây là database mới hoàn toàn chưa từng được khai báo)
             docker exec strongbi-neo4j cypher-shell -u neo4j -p password123 -d system "CREATE DATABASE \`$DB_NAME\` IF NOT EXISTS;" >/dev/null 2>&1 || true
             # Mở lại database
