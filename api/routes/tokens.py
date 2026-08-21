@@ -29,7 +29,7 @@ class TokenListResponse(BaseModel):
 @token_required
 async def generate_token(request: Request) -> TokenListItem:
     try:
-        user_email = request.state.user_email
+        user_email = request.state.user.get("email")
 
         handler = getattr(request.app.state, "callback_handler", None)
         if handler:
@@ -72,7 +72,7 @@ async def generate_token(request: Request) -> TokenListItem:
 async def list_tokens(request: Request) -> TokenListResponse:
     """List all tokens for the authenticated user"""
     try:
-        user_email = request.state.user_email
+        user_email = request.state.user.get("email")
 
         db = await get_default_db()
         db.select_graph("Organizations")
@@ -110,7 +110,7 @@ async def list_tokens(request: Request) -> TokenListResponse:
 async def delete_token(request: Request, token_id: str) -> JSONResponse:
     """Delete a specific token for the authenticated user"""
     try:
-        user_email = request.state.user_email
+        user_email = request.state.user.get("email")
 
         db = await get_default_db()
         db.select_graph("Organizations")

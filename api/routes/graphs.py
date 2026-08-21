@@ -17,10 +17,11 @@ from api.core.text2sql import (
     run_confirmed,
     run_query,
 )
-from api.core.graph_text2sql import run_query_graph
-from api.core.graph_text2sql_v3 import run_query_graph_v3
+
+from pydantic import BaseModel, Field
 from api.core.graph_text2sql_v4 import run_query_graph_v4
-from api.core.graph_text2sql_v4 import run_query_graph_v4
+from api.core.graph_text2sql_v5 import run_query_graph_v5
+from api.loaders.semantic_loader import load_semantic_layer, get_semantic_layer, delete_semantic_node
 from api.core.pipeline import (
     GENERAL_PREFIX,
     MESSAGE_DELIMITER,
@@ -36,7 +37,37 @@ from api.graph_db.factory import GraphDatabaseFactory
 from api.auth.models import UserRole
 from api.routes.tokens import UNAUTHORIZED_RESPONSE
 
+
+class SemanticMetric(BaseModel):
+    name: str
+    description: str = ""
+    formula: str = ""
+    table: str = ""
+
+
+class SemanticDimension(BaseModel):
+    name: str
+    description: str = ""
+    table: str = ""
+    column: str = ""
+
+
+class SemanticPayload(BaseModel):
+    metrics: list[SemanticMetric] = Field(default_factory=list)
+    dimensions: list[SemanticDimension] = Field(default_factory=list)
+
+
 graphs_router = APIRouter(tags=["Graphs & Databases"])
+
+def _get_model_with_prefix(user: dict) -> str | None:
+    model = user.get("llm_model")
+    provider = user.get("llm_provider")
+    if not model:
+        return None
+    if provider and provider in ("openrouter", "openai", "anthropic", "cohere", "azure", "gemini"):
+        if not model.startswith(f"{provider}/"):
+            return f"{provider}/{model}"
+    return model
 
 
 async def _serialize_pipeline(gen):
@@ -117,6 +148,47 @@ async def list_graphs(request: Request):
 
 
 @graphs_router.get(
+    "/{graph_id}/schema_metadata",
+    operation_id="schema_metadata",
+    responses={401: UNAUTHORIZED_RESPONSE}
+)
+@token_required
+@roles_allowed(UserRole.ADMIN, UserRole.ANALYST)
+async def get_graph_schema_metadata(request: Request, graph_id: str):
+    try:
+        from api.core.text2sql import get_schema_metadata
+        db = await GraphDatabaseFactory.get_instance()
+        metadata = await get_schema_metadata(request.state.user_id, graph_id, db=db)
+        return JSONResponse(content={"metadata": metadata})
+    except GraphNotFoundError:
+        return JSONResponse(content={"error": "Database not found"}, status_code=404)
+    except Exception as e:
+        logging.error("Error getting schema metadata: %s", str(e))
+        return JSONResponse(content={"error": "Failed to get schema metadata"}, status_code=500)
+
+
+@graphs_router.put(
+    "/{graph_id}/schema_metadata",
+    operation_id="update_schema_metadata",
+    responses={401: UNAUTHORIZED_RESPONSE}
+)
+@token_required
+@roles_allowed(UserRole.ADMIN, UserRole.ANALYST)
+async def update_graph_schema_metadata(request: Request, graph_id: str):
+    try:
+        data = await request.json()
+        from api.core.text2sql import update_schema_metadata
+        db = await GraphDatabaseFactory.get_instance()
+        result = await update_schema_metadata(request.state.user_id, graph_id, data, db=db)
+        return JSONResponse(content=result)
+    except GraphNotFoundError:
+        return JSONResponse(content={"error": "Database not found"}, status_code=404)
+    except Exception as e:
+        logging.error("Error updating schema metadata: %s", str(e))
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+
+
+@graphs_router.get(
     "/{graph_id}/data",
     operation_id="database_schema",
     tags=["mcp_tool"],
@@ -129,7 +201,8 @@ async def get_graph_data(
 ):  
 
     try:
-        schema = await get_schema(request.state.user_id, graph_id)
+        db = await GraphDatabaseFactory.get_instance()
+        schema = await get_schema(request.state.user_id, graph_id, db=db)
         return JSONResponse(content=schema)
     except GraphNotFoundError as gnfe:
         logging.warning("Graph not found: %s", str(gnfe))
@@ -188,11 +261,11 @@ async def query_graph(
         # Fallback to user-specific LLM config if not provided in request
         user = getattr(request.state, "user", {})
         if not chat_data.custom_model and user.get("llm_model"):
-            chat_data.custom_model = user["llm_model"]
+            chat_data.custom_model = _get_model_with_prefix(user)
             chat_data.custom_api_key = user.get("llm_api_key")
             chat_data.custom_api_base = user.get("llm_api_base")
             
-        graph_name(request.state.user_id, graph_id)
+        graph_id = graph_name(request.state.user_id, graph_id)
         validate_and_truncate_chat(chat_data)
         validate_custom_model(getattr(chat_data, "custom_model", None))
     except InvalidArgumentError as iae:
@@ -219,94 +292,7 @@ async def query_graph(
     return StreamingResponse(stream(), media_type="application/json")
 
 
-@graphs_router.post(
-    "/{graph_id}/v2",
-    operation_id="query_database_v2",
-    tags=["mcp_tool"],
-    responses={401: UNAUTHORIZED_RESPONSE}
-)
-@token_required
-@roles_allowed(UserRole.ADMIN, UserRole.ANALYST)
-async def query_graph_v2(
-    request: Request, graph_id: str, chat_data: ChatRequest
-):  
-    try:
-        user = getattr(request.state, "user", {})
-        if not chat_data.custom_model and user.get("llm_model"):
-            chat_data.custom_model = user["llm_model"]
-            chat_data.custom_api_key = user.get("llm_api_key")
-            chat_data.custom_api_base = user.get("llm_api_base")
-            
-        graph_name(request.state.user_id, graph_id)
-        validate_and_truncate_chat(chat_data)
-        validate_custom_model(getattr(chat_data, "custom_model", None))
-    except InvalidArgumentError as iae:
-        logging.warning("Invalid argument in query: %s", str(iae))
-        return JSONResponse(content={"error": "Invalid query request"}, status_code=400)
 
-    async def stream():
-        try:
-            db = await GraphDatabaseFactory.get_instance()
-            async for chunk in _serialize_pipeline(
-                run_query_graph(request.state.user_id, graph_id, chat_data, db=db)
-            ):
-                yield chunk
-        except Exception as e: 
-            import traceback
-            tb = traceback.format_exc()
-            logging.exception("Streaming query failed")
-            yield json.dumps({
-                "type": "error",
-                "final_response": True,
-                "message": f"Internal error while processing query: {str(e)}\\n{tb}",
-            }) + MESSAGE_DELIMITER
-
-    return StreamingResponse(stream(), media_type="application/json")
-
-
-@graphs_router.post(
-    "/{graph_id}/v3",
-    operation_id="query_database_v3",
-    tags=["mcp_tool"],
-    responses={401: UNAUTHORIZED_RESPONSE}
-)
-@token_required
-@roles_allowed(UserRole.ADMIN, UserRole.ANALYST)
-async def query_graph_v3(
-    request: Request, graph_id: str, chat_data: ChatRequest
-):  
-    try:
-        user = getattr(request.state, "user", {})
-        if not chat_data.custom_model and user.get("llm_model"):
-            chat_data.custom_model = user["llm_model"]
-            chat_data.custom_api_key = user.get("llm_api_key")
-            chat_data.custom_api_base = user.get("llm_api_base")
-            
-        graph_name(request.state.user_id, graph_id)
-        validate_and_truncate_chat(chat_data)
-        validate_custom_model(getattr(chat_data, "custom_model", None))
-    except InvalidArgumentError as iae:
-        logging.warning("Invalid argument in query: %s", str(iae))
-        return JSONResponse(content={"error": "Invalid query request"}, status_code=400)
-
-    async def stream():
-        try:
-            db = await GraphDatabaseFactory.get_instance()
-            async for chunk in _serialize_pipeline(
-                run_query_graph_v3(request.state.user_id, graph_id, chat_data, db=db)
-            ):
-                yield chunk
-        except Exception as e: 
-            import traceback
-            tb = traceback.format_exc()
-            logging.exception("Streaming query failed")
-            yield json.dumps({
-                "type": "error",
-                "final_response": True,
-                "message": f"Internal error while processing query: {str(e)}\\n{tb}",
-            }) + MESSAGE_DELIMITER
-
-    return StreamingResponse(stream(), media_type="application/json")
 
 
 @graphs_router.post(
@@ -323,11 +309,11 @@ async def query_graph_v4(
     try:
         user = getattr(request.state, "user", {})
         if not chat_data.custom_model and user.get("llm_model"):
-            chat_data.custom_model = user["llm_model"]
+            chat_data.custom_model = _get_model_with_prefix(user)
             chat_data.custom_api_key = user.get("llm_api_key")
             chat_data.custom_api_base = user.get("llm_api_base")
             
-        graph_name(request.state.user_id, graph_id)
+        graph_id = graph_name(request.state.user_id, graph_id)
         validate_and_truncate_chat(chat_data)
         validate_custom_model(getattr(chat_data, "custom_model", None))
     except InvalidArgumentError as iae:
@@ -339,6 +325,51 @@ async def query_graph_v4(
             db = await GraphDatabaseFactory.get_instance()
             async for chunk in _serialize_pipeline(
                 run_query_graph_v4(request.state.user_id, graph_id, chat_data, db=db)
+            ):
+                yield chunk
+        except Exception as e: 
+            import traceback
+            tb = traceback.format_exc()
+            logging.exception("Streaming query failed")
+            yield json.dumps({
+                "type": "error",
+                "final_response": True,
+                "message": f"Internal error while processing query: {str(e)}",
+            }) + MESSAGE_DELIMITER
+
+    return StreamingResponse(stream(), media_type="application/json")
+
+
+@graphs_router.post(
+    "/{graph_id}/v5",
+    operation_id="query_database_v5",
+    tags=["mcp_tool"],
+    responses={401: UNAUTHORIZED_RESPONSE}
+)
+@token_required
+@roles_allowed(UserRole.ADMIN, UserRole.ANALYST)
+async def query_graph_v5(
+    request: Request, graph_id: str, chat_data: ChatRequest
+):  
+    try:
+        user = getattr(request.state, "user", {})
+        if not chat_data.custom_model and user.get("llm_model"):
+            chat_data.custom_model = _get_model_with_prefix(user)
+            chat_data.custom_api_key = user.get("llm_api_key")
+            chat_data.custom_api_base = user.get("llm_api_base")
+            
+        graph_id = graph_name(request.state.user_id, graph_id)
+        validate_and_truncate_chat(chat_data)
+        validate_custom_model(getattr(chat_data, "custom_model", None))
+    except InvalidArgumentError as iae:
+        logging.warning("Invalid argument in query: %s", str(iae))
+        return JSONResponse(content={"error": "Invalid query request"}, status_code=400)
+
+    async def stream():
+        try:
+            db = await GraphDatabaseFactory.get_instance()
+            async for chunk in _serialize_pipeline(
+                run_query_graph_v5(request.state.user_id, graph_id, chat_data, db=db)
             ):
                 yield chunk
         except Exception as e: 
@@ -371,7 +402,7 @@ async def confirm_destructive_operation(
         # Fallback to user-specific LLM config if not provided in request
         user = getattr(request.state, "user", {})
         if not confirm_data.custom_model and user.get("llm_model"):
-            confirm_data.custom_model = user["llm_model"]
+            confirm_data.custom_model = _get_model_with_prefix(user)
             confirm_data.custom_api_key = user.get("llm_api_key")
             confirm_data.custom_api_base = user.get("llm_api_base")
             
@@ -409,7 +440,8 @@ async def confirm_destructive_operation(
 @roles_allowed(UserRole.ADMIN, UserRole.ANALYST)
 async def refresh_graph_schema(request: Request, graph_id: str):
     try:
-        generator = await refresh_database_schema(request.state.user_id, graph_id)
+        db = await GraphDatabaseFactory.get_instance()
+        generator = await refresh_database_schema(request.state.user_id, graph_id, db=db)
         return StreamingResponse(generator, media_type="application/json")
     except (InternalError, InvalidArgumentError) as e:
         if isinstance(e, InternalError):
@@ -489,7 +521,8 @@ async def explore_graph(request: Request, graph_id: str, limit: int = 100):
 async def delete_graph(request: Request, graph_id: str):
 
     try:
-        result = await delete_database(request.state.user_id, graph_id)
+        db = await GraphDatabaseFactory.get_instance()
+        result = await delete_database(request.state.user_id, graph_id, db=db)
         return JSONResponse(content=result)
 
     except InvalidArgumentError as iae:
@@ -558,3 +591,89 @@ async def update_graph_user_rules(request: Request, graph_id: str, data: UserRul
     except Exception as e: 
         logging.error("Error updating user rules: %s", str(e))
         return JSONResponse(content={"error": "Failed to update user rules"}, status_code=500)
+
+
+@graphs_router.post(
+    "/{graph_id}/semantic",
+    operation_id="upload_semantic_layer",
+    responses={401: UNAUTHORIZED_RESPONSE}
+)
+@token_required
+@roles_allowed(UserRole.ADMIN, UserRole.ANALYST)
+async def upload_semantic_layer_endpoint(
+    request: Request, graph_id: str, payload: SemanticPayload
+):
+    """
+    Upload semantic business logic (Metrics, Dimensions) for the graph.
+    """
+    try:
+        namespaced = graph_name(request.state.user_id, graph_id)
+        db = await GraphDatabaseFactory.get_instance()
+        
+        # Chuyển payload sang dict cho semantic_loader
+        await load_semantic_layer(namespaced, payload.model_dump(), db=db)
+        
+        return JSONResponse(
+            content={"success": True, "message": "Semantic layer loaded successfully"}
+        )
+    except Exception as e:
+        logging.exception("Failed to load semantic layer")
+        return JSONResponse(
+            content={"error": f"Failed to load semantic layer: {str(e)}"}, status_code=500
+        )
+
+@graphs_router.get(
+    "/{graph_id}/semantic",
+    operation_id="get_semantic_layer",
+    responses={401: UNAUTHORIZED_RESPONSE}
+)
+@token_required
+@roles_allowed(UserRole.ADMIN, UserRole.ANALYST)
+async def get_semantic_layer_endpoint(
+    request: Request, graph_id: str
+):
+    """
+    Retrieve semantic business logic (Metrics, Dimensions) for the graph.
+    """
+    try:
+        namespaced = graph_name(request.state.user_id, graph_id)
+        db = await GraphDatabaseFactory.get_instance()
+        
+        data = await get_semantic_layer(namespaced, db=db)
+        
+        return JSONResponse(
+            content=data
+        )
+    except Exception as e:
+        logging.exception("Failed to retrieve semantic layer")
+        return JSONResponse(
+            content={"error": f"Failed to retrieve semantic layer: {str(e)}"}, status_code=500
+        )
+
+@graphs_router.delete(
+    "/{graph_id}/semantic/{node_type}/{node_name}",
+    operation_id="delete_semantic_node",
+    responses={401: UNAUTHORIZED_RESPONSE}
+)
+@token_required
+@roles_allowed(UserRole.ADMIN, UserRole.ANALYST)
+async def delete_semantic_node_endpoint(
+    request: Request, graph_id: str, node_type: str, node_name: str
+):
+    """
+    Delete a semantic node (metric or dimension) from the graph.
+    """
+    try:
+        namespaced = graph_name(request.state.user_id, graph_id)
+        db = await GraphDatabaseFactory.get_instance()
+        
+        await delete_semantic_node(namespaced, node_type, node_name, db=db)
+        
+        return JSONResponse(
+            content={"success": True, "message": f"{node_type} {node_name} deleted successfully"}
+        )
+    except Exception as e:
+        logging.exception("Failed to delete semantic node")
+        return JSONResponse(
+            content={"error": f"Failed to delete semantic node: {str(e)}"}, status_code=500
+        )

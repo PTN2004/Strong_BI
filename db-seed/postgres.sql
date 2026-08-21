@@ -1,0 +1,203 @@
+--
+-- PostgreSQL database dump
+--
+
+\restrict 9LT3Whq4rQZFsFSzRdOTawVlA7AB6Pw9KKiTj6w8lpbgzhd0ApgCgZuFZEK7ZQl
+
+-- Dumped from database version 15.17
+-- Dumped by pg_dump version 15.17
+
+SET statement_timeout = 0;
+SET lock_timeout = 0;
+SET idle_in_transaction_session_timeout = 0;
+SET client_encoding = 'UTF8';
+SET standard_conforming_strings = on;
+SELECT pg_catalog.set_config('search_path', '', false);
+SET check_function_bodies = false;
+SET xmloption = content;
+SET client_min_messages = warning;
+SET row_security = off;
+
+ALTER TABLE ONLY public.user_tokens DROP CONSTRAINT user_tokens_user_id_fkey;
+DROP INDEX public.ix_users_email;
+DROP INDEX public.ix_user_tokens_user_id;
+ALTER TABLE ONLY public.users DROP CONSTRAINT users_pkey;
+ALTER TABLE ONLY public.user_tokens DROP CONSTRAINT user_tokens_pkey;
+DROP TABLE public.users;
+DROP TABLE public.user_tokens;
+DROP TYPE public.user_role;
+--
+-- Name: user_role; Type: TYPE; Schema: public; Owner: postgres
+--
+
+CREATE TYPE public.user_role AS ENUM (
+    'ADMIN',
+    'ANALYST',
+    'VIEWER'
+);
+
+
+ALTER TYPE public.user_role OWNER TO postgres;
+
+SET default_tablespace = '';
+
+SET default_table_access_method = heap;
+
+--
+-- Name: user_tokens; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.user_tokens (
+    id character varying(64) NOT NULL,
+    user_id uuid NOT NULL,
+    expires_at timestamp with time zone NOT NULL,
+    created_at timestamp with time zone NOT NULL
+);
+
+
+ALTER TABLE public.user_tokens OWNER TO postgres;
+
+--
+-- Name: users; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.users (
+    id uuid NOT NULL,
+    email character varying(255) NOT NULL,
+    password_hash character varying(512) NOT NULL,
+    first_name character varying(100) NOT NULL,
+    last_name character varying(100) NOT NULL,
+    role public.user_role NOT NULL,
+    is_active boolean NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    llm_provider character varying(50),
+    llm_model character varying(100),
+    llm_api_key character varying(255),
+    llm_api_base character varying(255)
+);
+
+
+ALTER TABLE public.users OWNER TO postgres;
+
+--
+-- Data for Name: user_tokens; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY public.user_tokens (id, user_id, expires_at, created_at) FROM stdin;
+ZupoFFJMPuES1kNLpLinKCdTpT3QKxKdx4TKuxdOT8Q	48c5a480-a696-4a7d-8539-58e1f211866e	2026-07-24 16:21:18.302145+00	2026-07-10 16:21:18.303003+00
+HTZLbjv-Hyc1ex6u3Jaq94vaSOxx413dnhWqw4W1F34	48c5a480-a696-4a7d-8539-58e1f211866e	2026-07-25 10:12:05.022595+00	2026-07-11 10:12:05.048648+00
+wBrSdx_WZwNh2ixe-rQFYR3GdPMtmgFA7BULWxta-JU	48c5a480-a696-4a7d-8539-58e1f211866e	2026-07-25 16:26:26.236744+00	2026-07-11 16:26:26.256199+00
+VFsnjrMHmBtJc_YEvd-Gzm7zdWIKxO35EyYSI8zOBrA	9704d719-2ad8-4b5e-ba01-852af2fa0d0e	2026-07-28 09:38:14.881957+00	2026-07-14 09:38:14.882401+00
+mSNcSRpCa07QU5QQ7sMJyXOJB38g_FGQrhcQi2MhMe0	dc07f179-adff-4d4d-ae8f-b9a6868f6c53	2026-07-28 09:51:52.173332+00	2026-07-14 09:51:52.174806+00
+MyLoYI2D3Hl_RmQd54wmEM3v4A5fw6L8M7KkC5s-G4A	dc07f179-adff-4d4d-ae8f-b9a6868f6c53	2026-07-28 09:56:18.311519+00	2026-07-14 09:56:18.327353+00
+2NhwBDBd2uX3NHurts3LBA_WG3_HxUqclY6BllWs1w8	dc07f179-adff-4d4d-ae8f-b9a6868f6c53	2026-07-28 10:00:00.551469+00	2026-07-14 10:00:00.555384+00
+Bkkxi5xiXM2_SvBVlluA4puc0nLeZ3zuctXnAGXrQy4	2ac37186-e706-4f6e-b550-87f89a58e5df	2026-07-30 08:25:34.609495+00	2026-07-16 08:25:34.609927+00
+TWO8bKsPh8BPpvH5LGW1Sa2iIH1D86BwHFi1AAh1bew	48c5a480-a696-4a7d-8539-58e1f211866e	2026-07-30 08:26:42.555164+00	2026-07-16 08:26:42.599069+00
+X1LMVb3a2Bp5YE-tclL3pbHhqV9h1rVCQjSHSqZSvmg	dc07f179-adff-4d4d-ae8f-b9a6868f6c53	2026-07-30 09:17:35.81202+00	2026-07-16 09:17:35.826313+00
+2c89Q2vhREv0vfaYHCpJtN0lrwuItr3rBMceQ7VH5HA	48c5a480-a696-4a7d-8539-58e1f211866e	2026-07-30 09:24:39.152022+00	2026-07-16 09:24:39.162143+00
+HH7vNZWS7A9ZGX-bPJjCeEv3XL1ycemrYHfGt-QI_zI	dc07f179-adff-4d4d-ae8f-b9a6868f6c53	2026-07-30 09:28:37.253971+00	2026-07-16 09:28:37.265039+00
+Yyc5bzuyOcoOYe-7EgxXpkEiNWAI0u0z6eehVAS3Urw	dc07f179-adff-4d4d-ae8f-b9a6868f6c53	2026-07-30 09:29:30.160295+00	2026-07-16 09:29:30.1653+00
+YHYASysqmFMJChE5lvamRqVgdE3DhH3zlDQbWs6dtEI	dc07f179-adff-4d4d-ae8f-b9a6868f6c53	2026-07-30 09:31:34.432156+00	2026-07-16 09:31:34.439137+00
+O790y-lgeH7cBGPbUvatov5JJGxNBMLdVX7bNNU6Vqs	dc07f179-adff-4d4d-ae8f-b9a6868f6c53	2026-07-30 09:36:44.092806+00	2026-07-16 09:36:44.10528+00
+Ti3N0lEs8Mfy9ISIHbjvOgmnEriSgbgWhYx4sE_vg_w	dc07f179-adff-4d4d-ae8f-b9a6868f6c53	2026-07-30 09:39:20.508904+00	2026-07-16 09:39:20.515874+00
+wfhI60LenZJ1YoUWijLOzwcZXeL9MSiSl5dTUtOWC2M	dc07f179-adff-4d4d-ae8f-b9a6868f6c53	2026-07-30 09:40:11.156517+00	2026-07-16 09:40:11.160779+00
+7BrZNT6hBrLRIqxJmzGguZGgMICgJHMah8JBrXK79mo	dc07f179-adff-4d4d-ae8f-b9a6868f6c53	2026-07-30 09:45:26.574263+00	2026-07-16 09:45:26.600938+00
+3vawrlYjrtJ72ydSy2lQH7kPmQY12sSt8xPOXwDtO2o	dc07f179-adff-4d4d-ae8f-b9a6868f6c53	2026-07-30 09:49:54.894549+00	2026-07-16 09:49:54.902155+00
+LGxdM-cuJQfdKweR6Nm_TCjJ1IfZGwBdcoMISGAy-YE	dc07f179-adff-4d4d-ae8f-b9a6868f6c53	2026-07-30 09:50:35.923898+00	2026-07-16 09:50:35.931901+00
+oh5CJp9cVL3Y3y3DVJWj_DObF4S7zKk50N7UVrGL5As	dc07f179-adff-4d4d-ae8f-b9a6868f6c53	2026-07-30 09:54:09.103464+00	2026-07-16 09:54:09.11425+00
+dmqxZhqhRGcPR19wkrUzHviHtIXyUOu8tu0lRWX_M9Y	dc07f179-adff-4d4d-ae8f-b9a6868f6c53	2026-07-30 09:58:17.670801+00	2026-07-16 09:58:17.680417+00
+ctoQaPThNTwdMvpAfuH2HzMj-zyNYv6hVvpUDE486PY	dc07f179-adff-4d4d-ae8f-b9a6868f6c53	2026-07-30 10:16:54.692702+00	2026-07-16 10:16:54.710011+00
+zRVx75-hRIqXuNbfPC5qy0Wtx-R2VhAri_zlu0hRUBM	dc07f179-adff-4d4d-ae8f-b9a6868f6c53	2026-07-30 14:38:11.570275+00	2026-07-16 14:38:11.591321+00
+FCpCkZ90FZNlKxP_qFmXzWCerGg0ImKdL0wM1PS8SHU	dc07f179-adff-4d4d-ae8f-b9a6868f6c53	2026-07-30 15:04:38.344366+00	2026-07-16 15:04:38.363283+00
+pUNOFm45fiXVZNsybPe-8Siml-ExcmzrPrx-OlHo4NI	dc07f179-adff-4d4d-ae8f-b9a6868f6c53	2026-07-30 15:07:20.170191+00	2026-07-16 15:07:20.177382+00
+bTPsjXJ7SqQHcS-fLDwUssAoJ7UB-m-aWkTkAmq--Y4	dc07f179-adff-4d4d-ae8f-b9a6868f6c53	2026-07-30 15:08:27.366805+00	2026-07-16 15:08:27.369899+00
+1uBI6d7EaOF2ksC2TJemFwFitfsCN_AWJKDAZ1cD5Qo	dc07f179-adff-4d4d-ae8f-b9a6868f6c53	2026-07-31 10:58:21.011507+00	2026-07-17 10:58:21.03189+00
+QHeKYQmKUwFZYcavFBzMFk3IZWIpL4gU8gHB_v23MFo	48c5a480-a696-4a7d-8539-58e1f211866e	2026-08-01 13:29:07.368243+00	2026-07-18 13:29:07.462419+00
+fwUcb1orThm8dt-iECye5ssjH1qLOn1tOZonqOAJ3f4	98061a5d-d921-4149-b463-b49cb3b9c33c	2026-08-01 13:37:47.785832+00	2026-07-18 13:37:47.786278+00
+NzimKGP7DaBPGOVpzezpNpDQaqIaQDNjWLM2CNC4X9I	98061a5d-d921-4149-b463-b49cb3b9c33c	2026-08-01 13:41:20.045318+00	2026-07-18 13:41:20.050922+00
+E1Yb0XtxqoIeae_Lr8GIJFPT81SV8InTCV15HuB14ww	98061a5d-d921-4149-b463-b49cb3b9c33c	2026-08-01 13:41:43.149027+00	2026-07-18 13:41:43.155192+00
+eoMu1LxMudAwr1lJqGAChjj42s3Zmz3pJdwNA_QH5qs	b35f57e6-17cf-40ef-a31a-826a0bc6c1c9	2026-08-01 13:51:38.751827+00	2026-07-18 13:51:38.755182+00
+uD3nf5VSzY1-etffaC6GCCqN7KZixRLbYfDH40tfYDc	98061a5d-d921-4149-b463-b49cb3b9c33c	2026-08-01 13:55:20.452483+00	2026-07-18 13:55:20.471814+00
+qBZMW1ojWg04IUSPvqWeUz08kSOO_n_oqMq228O46Vk	98061a5d-d921-4149-b463-b49cb3b9c33c	2026-08-01 13:56:27.244205+00	2026-07-18 13:56:27.249472+00
+cuzenirFYLsYEfK4dq5oAZRXgeUaREGHkvMWL2z4lb4	98061a5d-d921-4149-b463-b49cb3b9c33c	2026-08-01 13:56:48.517051+00	2026-07-18 13:56:48.525616+00
+RqUu5LUTd0JEUAirQaf-1i7EHSn1T4hcvTKij_w5GEs	98061a5d-d921-4149-b463-b49cb3b9c33c	2026-08-01 13:57:16.030281+00	2026-07-18 13:57:16.036761+00
+-goGOzXkXUbzQGXqftg8xCfcrHpMOJmN2cETC1gB38U	98061a5d-d921-4149-b463-b49cb3b9c33c	2026-08-01 13:57:33.620198+00	2026-07-18 13:57:33.628457+00
+xY1c_HyFhuRxJuVdJjhg54kzvkvjPRzneF-aPzfd_2M	98061a5d-d921-4149-b463-b49cb3b9c33c	2026-08-01 14:02:53.860738+00	2026-07-18 14:02:53.863043+00
+KbBVTHi0BFlq5PgaDXVcTwEZwukPE32iP7uWQZdrzHM	98061a5d-d921-4149-b463-b49cb3b9c33c	2026-08-01 14:50:25.950278+00	2026-07-18 14:50:25.962756+00
+ZRRvm5otqxaViGbt_GhE-wrHEPDAkoH_m0Sh02FxG84	98061a5d-d921-4149-b463-b49cb3b9c33c	2026-08-01 14:51:07.95239+00	2026-07-18 14:51:07.955955+00
+shLMEH89-tKQ1byAw2gApt0YtokVkUyfpFSmZBAe7V4	48c5a480-a696-4a7d-8539-58e1f211866e	2026-08-02 13:33:39.699769+00	2026-07-19 13:33:39.731256+00
+EOTJJNkOfknjdJWib0s6pW7UkW0QT17DCg7RmU1oMA4	98061a5d-d921-4149-b463-b49cb3b9c33c	2026-08-02 14:06:30.440735+00	2026-07-19 14:06:30.45781+00
+6nBJuB77CmEasFenEX5vfZI8fGegAxP2x7BaGtXiwtQ	98061a5d-d921-4149-b463-b49cb3b9c33c	2026-08-02 14:09:25.446543+00	2026-07-19 14:09:25.452095+00
+z6DkYyiwZ5wQrf3-4N7ZQsQsdw8U3b75PjEYBrTRPDc	98061a5d-d921-4149-b463-b49cb3b9c33c	2026-08-02 14:10:34.89543+00	2026-07-19 14:10:34.920401+00
+y5QBiGyZp3FHW1QmZHu5HMUH3hoQzP1Ut3sOGzj-2zs	98061a5d-d921-4149-b463-b49cb3b9c33c	2026-08-02 14:30:40.360145+00	2026-07-19 14:30:40.377825+00
+ZLRCPst78zLUV-U-vRCoWTJUuoO4k4jLcmWrruRDyeI	98061a5d-d921-4149-b463-b49cb3b9c33c	2026-08-02 14:35:18.41864+00	2026-07-19 14:35:18.449408+00
+PixacVNpt51bgQa7Mpbj0oBI1XdMztWOHW1bVNrzy2s	dc07f179-adff-4d4d-ae8f-b9a6868f6c53	2026-08-02 14:42:21.625786+00	2026-07-19 14:42:21.646058+00
+YrM22jLxrWCsn7I5jIUijyymo-7aBNpVtKTNQpaWnmI	48c5a480-a696-4a7d-8539-58e1f211866e	2026-08-03 16:05:33.799123+00	2026-07-20 16:05:33.911675+00
+G6olFpPhRvMkw8m-v1tcP_rjqTWRdc-YUOWPaaLtOmQ	48c5a480-a696-4a7d-8539-58e1f211866e	2026-08-05 03:46:23.833433+00	2026-07-22 03:46:23.863116+00
+vhJASMfBYj6Qp4NnOyFS6YGUCuS1bgb4A5x4kfzKmGQ	48c5a480-a696-4a7d-8539-58e1f211866e	2026-08-18 11:56:17.347561+00	2026-08-04 11:56:17.369837+00
+gYsTmEuy9zb0H6o1Q-tHqrq3pokzhjUOOA_TdjheSeo	48c5a480-a696-4a7d-8539-58e1f211866e	2026-08-20 11:45:47.754246+00	2026-08-06 11:45:47.798977+00
+BuGs5O5WB9CbqgAknYoHULwQDKnT4xKqMIxNVx1oEDc	48c5a480-a696-4a7d-8539-58e1f211866e	2026-08-27 13:20:21.031089+00	2026-08-13 13:20:21.080048+00
+iJqkEuFE0x1NWFy-7gwWfj4qdzAA7Eb68kNMc3J9wqI	48c5a480-a696-4a7d-8539-58e1f211866e	2026-09-01 13:58:18.52904+00	2026-08-18 13:58:18.553705+00
+9aYAfu2E_9_2DuGF7_dSKyp48iNsJwBG5bTWjNa8Q-g	48c5a480-a696-4a7d-8539-58e1f211866e	2026-09-04 06:04:31.84585+00	2026-08-21 06:04:31.866649+00
+\.
+
+
+--
+-- Data for Name: users; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY public.users (id, email, password_hash, first_name, last_name, role, is_active, created_at, updated_at, llm_provider, llm_model, llm_api_key, llm_api_base) FROM stdin;
+9704d719-2ad8-4b5e-ba01-852af2fa0d0e	test_backend@example.com	38f2066528dad4baf2bb6a8115dc9fcdf51a2b7aa878c75438669250dc02d4ee0c4d83f56b4d8acd30d6eb3584d68b53a732b370873edcbad5aa576d7cf04cb9	Backend	Tester	ANALYST	t	2026-07-14 09:38:14.868191+00	2026-07-14 09:38:14.868195+00	\N	\N	\N	\N
+98061a5d-d921-4149-b463-b49cb3b9c33c	test_chat_cli@example.com	a299a56cae934780047b4be739bb6eef5f952b3bbbeb51911d7c72a5462bffa13f87d10d5e7fccf8552d0a4c2b6c896667ba58b624a5147fd847d20ed82f4128	Test	User	ANALYST	t	2026-07-18 13:37:47.768911+00	2026-07-19 14:35:18.414012+00	\N	\N	\N	\N
+2ac37186-e706-4f6e-b550-87f89a58e5df	test@test.com	c56979191219b29000fabcea2fc06d093a997bda8165783f29865f7a78c5de77ee76aa3052fc9016d46c44a91d36e47bf5d203e0ebdb33660fe4bce7dd1e5ffc	Test	User	ANALYST	t	2026-07-16 08:25:34.595351+00	2026-07-17 11:59:32.691742+00	\N	\N	\N	\N
+dc07f179-adff-4d4d-ae8f-b9a6868f6c53	test_curl@strongbi.com	7b8090265d0f551340a258fe75d9961ec282c9cf08d821ae35122926cff58c67ab6bb885ba9e11e06a6cfc37836d95fedb315e0f54d68bc61e57b40eea78f417	Curl	Tester	ANALYST	t	2026-07-14 09:51:52.156561+00	2026-08-06 11:36:08.825168+00	\N	\N	\N	\N
+b35f57e6-17cf-40ef-a31a-826a0bc6c1c9	new_admin@example.com	576c12b7f0bbc08e050a2fb6db275ba987d8b881053d07845039b73977ab55115ee099eda8225df026b32fee2cda4c6a7ed3d9254e9484465faa84c2abe1414f	Admin	User	ANALYST	t	2026-07-18 13:51:38.710235+00	2026-07-18 13:51:38.71027+00	\N	\N	\N	\N
+48c5a480-a696-4a7d-8539-58e1f211866e	phamtu522004tanlap@gmail.com	f04b8407145b1a562ebc2aaff68f6282746dc5eb349e015040ccadcb298304db67c1a9d6200e6f7c814296dbd95a7e24e067f6e270ebe286c2f85732e49a7e04	PhamTu		ADMIN	t	2026-07-10 16:21:18.284729+00	2026-08-21 06:04:31.845568+00	\N	\N	\N	\N
+\.
+
+
+--
+-- Name: user_tokens user_tokens_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.user_tokens
+    ADD CONSTRAINT user_tokens_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: users users_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.users
+    ADD CONSTRAINT users_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: ix_user_tokens_user_id; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX ix_user_tokens_user_id ON public.user_tokens USING btree (user_id);
+
+
+--
+-- Name: ix_users_email; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE UNIQUE INDEX ix_users_email ON public.users USING btree (email);
+
+
+--
+-- Name: user_tokens user_tokens_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.user_tokens
+    ADD CONSTRAINT user_tokens_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- PostgreSQL database dump complete
+--
+
+\unrestrict 9LT3Whq4rQZFsFSzRdOTawVlA7AB6Pw9KKiTj6w8lpbgzhd0ApgCgZuFZEK7ZQl
+

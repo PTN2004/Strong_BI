@@ -73,13 +73,28 @@ class Neo4jGraphDatabase(GraphDatabase):
                 parameters_=params or {},
                 database_=target_db
             )
-
-            return QueryDBResult(
-                result_set=[record.data() for record in records],
-            )
-
+            return QueryDBResult(result_set=[record.data() for record in records])
         except Exception as e:
-            logger.error(f"Query execution failed: {str(e)}\nQuery: {query}")
+            error_str = str(e)
+            if "DatabaseNotFound" in error_str or "does not exist" in error_str:
+                if self.is_enterprise and target_db != "system":
+                    logger.info(f"Database {target_db} not found, attempting to create it...")
+                    try:
+                        async with self._driver.session(database="system") as session:
+                            await session.run(f"CREATE DATABASE `{target_db}` IF NOT EXISTS WAIT 10 SECONDS")
+                        
+                        # Retry query after creation
+                        records, summary, keys = await self._driver.execute_query(
+                            query,
+                            parameters_=params or {},
+                            database_=target_db
+                        )
+                        return QueryDBResult(result_set=[record.data() for record in records])
+                    except Exception as create_e:
+                        logger.error(f"Failed to auto-create database {target_db}: {str(create_e)}")
+                        # Fall back to raising the original error
+            if "no such vector schema index" not in str(e):
+                logger.error(f"Query execution failed: {str(e)}\nQuery: {query}")
             raise
 
     async def create_vector_index(
@@ -131,8 +146,15 @@ class Neo4jGraphDatabase(GraphDatabase):
     def select_graph(self, graph_id: str):
         if not self._driver:
             raise RuntimeError("Database not connected")
-        self._current_database = graph_id
-        logger.info(f"Select database have id: {graph_id}")
+        
+        # Neo4j requires database names to start with an ASCII letter.
+        # If graph_id starts with a digit/non-letter, prefix it.
+        if graph_id and not graph_id[0].isalpha():
+            self._current_database = f"db_{graph_id}"
+        else:
+            self._current_database = graph_id
+            
+        logger.info(f"Select database have id: {self._current_database}")
 
     async def clear_graph(self):
         try:

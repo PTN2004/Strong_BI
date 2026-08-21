@@ -810,6 +810,10 @@ def create_graphiti_client(graph_driver: Any) -> Optional[Graphiti]:
             
 
             llm_api_base = os.getenv('VLLM_API_BASE') or os.getenv('OPENAI_API_BASE')
+            if llm_provider == "ollama" and os.getenv('OLLAMA_API_BASE'):
+                base = os.getenv('OLLAMA_API_BASE').rstrip('/')
+                llm_api_base = f"{base}/v1" if not base.endswith('/v1') else base
+                
             llm_api_key = os.getenv('VLLM_API_KEY') or os.getenv('OPENAI_API_KEY') or 'dummy-key'
             
             custom_llm_client = AsyncOpenAI(api_key=llm_api_key, base_url=llm_api_base)

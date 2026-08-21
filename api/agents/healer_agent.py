@@ -1,20 +1,20 @@
 import re
 from typing import Dict, Callable, Any
 from litellm import completion
-from api.config import Config
+from api.config import Config, get_dynamic_api_key
 from .utils import parse_response
 
 
 class HealerAgent:
     """Agent specialized in fixing SQL syntax errors."""
     
-    def __init__(self, max_healing_attempts: int = 3):
+    def __init__(self, max_healing_attempts: int = 3, custom_api_key=None, custom_model=None, custom_api_base=None):
         """Initialize the healer agent.
-        
-        Args:
-            max_healing_attempts: Maximum number of healing attempts before giving up
         """
         self.max_healing_attempts = max_healing_attempts
+        self.custom_api_key = custom_api_key
+        self.custom_model = custom_model
+        self.custom_api_base = custom_api_base
         self.messages = []
     
     @staticmethod
@@ -218,7 +218,8 @@ IMPORTANT:
                 model=Config.COMPLETION_MODEL,
                 messages=self.messages,
                 temperature=0.1,
-                max_tokens=2000
+                max_tokens=2000,
+                api_key=get_dynamic_api_key(Config.COMPLETION_MODEL)
             )
             
             content = response.choices[0].message.content
@@ -279,6 +280,47 @@ Please fix this error."""
         }
         
     
+
+    def heal(self, user_question: str, broken_sql: str, error_message: str, schema_context: str) -> str:
+        prompt = f"""You are a SQL query debugging expert. Your task is to fix a SQL query that failed execution.
+
+FAILED SQL QUERY:
+```sql
+{broken_sql}
+```
+
+EXECUTION ERROR:
+{error_message}
+
+ORIGINAL QUESTION: {user_question}
+SCHEMA CONTEXT:
+{schema_context}
+
+YOUR TASK:
+1. Identify the exact cause of the error
+2. Fix ONLY what's broken - don't rewrite the entire query
+3. Maintain the original query logic and intent
+
+Return ONLY the raw executable SQL query without markdown formatting or explanation.
+"""
+        messages = [{"role": "user", "content": prompt}]
+        from api.agents.utils import run_completion
+        fixed_sql = run_completion(
+            messages=messages,
+            custom_model=self.custom_model,
+            custom_api_key=self.custom_api_key,
+            temperature=0.0
+        ).strip()
+        
+        if fixed_sql.startswith("```sql"):
+            fixed_sql = fixed_sql[6:]
+        if fixed_sql.startswith("```"):
+            fixed_sql = fixed_sql[3:]
+        if fixed_sql.endswith("```"):
+            fixed_sql = fixed_sql[:-3]
+            
+        return fixed_sql.strip()
+
     def _analyze_error(self, error_message: str, database_type: str) -> str:
         """Analyze error message and provide targeted hints."""
         

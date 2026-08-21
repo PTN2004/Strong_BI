@@ -149,11 +149,17 @@ async def list_databases(user_id: str, general_prefix: Optional[str] = None, db=
             res = await graph.query("MATCH (d:Database) RETURN DISTINCT d.name as name", {})
             filtered_graphs = [r["name"] for r in res.result_set if isinstance(r, dict) and "name" in r]
         else:
-            filtered_graphs = [
-                graph_name[len(f"{user_id}_"):]
-                for graph_name in user_graphs
-                if graph_name.startswith(f"{user_id}_")
-            ]
+            import re
+            safe_user_id = re.sub(r'[^a-zA-Z0-9\.\-]', '-', user_id.lower())
+            prefix = f"db-{safe_user_id}-"
+            
+            filtered_graphs = []
+            for g in user_graphs:
+                if g.startswith(prefix):
+                    filtered_graphs.append(g[len(prefix):])
+                # Fallback backward compatibility for non-neo4j or old graphs
+                elif g.startswith(f"{user_id}_"):
+                    filtered_graphs.append(g[len(f"{user_id}_"):])
 
         if general_prefix:
             demo_graphs = [

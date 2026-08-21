@@ -36,6 +36,17 @@ background_tasks_var: contextvars.ContextVar[Optional[set]] = (
 )
 
 
+import re
+
+def to_neo4j_safe(name: str) -> str:
+    # Replace anything not alphanumeric, dot, or dash with dash
+    safe_name = re.sub(r'[^a-zA-Z0-9\.\-]', '-', name.lower())
+    # Must start with a letter
+    if safe_name and not safe_name[0].isalpha():
+        safe_name = f"db-{safe_name}"
+    # Max length for Neo4j DB name is 63
+    return safe_name[:63]
+
 def graph_name(user_id: str, graph_id: str) -> str:
     graph_id = graph_id.strip()[:200]
     if not graph_id:
@@ -44,9 +55,10 @@ def graph_name(user_id: str, graph_id: str) -> str:
         )
 
     if GENERAL_PREFIX and graph_id.startswith(GENERAL_PREFIX):
-        return graph_id
+        return to_neo4j_safe(graph_id)
 
-    return f"{user_id}_{graph_id}"
+    raw_name = f"{user_id}-{graph_id}"
+    return to_neo4j_safe(raw_name)
 
 
 def is_general_graph(graph_id: str) -> bool:

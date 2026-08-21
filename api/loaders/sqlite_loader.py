@@ -11,6 +11,8 @@ import tqdm
 
 from api.loaders.base_loader import BaseLoader  # pylint: disable=import-error
 from api.loaders.graph_loader import load_to_graph  # pylint: disable=import-error
+from api.core.db_pool import pool_manager  # pylint: disable=import-error
+
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
@@ -105,9 +107,12 @@ class SQLiteLoader(BaseLoader):
         conn = None
         cursor = None
         try:
+            from api.core.pipeline import graph_name
             db_path = SQLiteLoader.parse_sqlite_path(connection_url)
 
-            conn = sqlite3.connect(db_path)
+            sqlite_url = f"sqlite:///{db_path}"
+            engine = pool_manager.get_engine(sqlite_url)
+            conn = engine.raw_connection()
             cursor = conn.cursor()
 
             cursor.execute("PRAGMA foreign_keys = ON;")
@@ -128,7 +133,7 @@ class SQLiteLoader(BaseLoader):
             yield True, "Loading data into graph..."
             # Load data into graph
             await load_to_graph(
-                f"{prefix}_{db_name}", 
+                graph_name(prefix, db_name), 
                 entities, 
                 relationships,
                 db_name=db_name, 
@@ -354,8 +359,9 @@ class SQLiteLoader(BaseLoader):
             # Parse file path from connection URL
             db_path = SQLiteLoader.parse_sqlite_path(db_url)
 
-            # Connect to SQLite database
-            conn = sqlite3.connect(db_path)
+            sqlite_url = f"sqlite:///{db_path}"
+            engine = pool_manager.get_engine(sqlite_url)
+            conn = engine.raw_connection()
             conn.row_factory = sqlite3.Row  # Return rows as dictionaries
             cursor = conn.cursor()
 

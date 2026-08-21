@@ -6,8 +6,9 @@ from typing import Any, Dict, List, Tuple
 
 from litellm import acompletion
 from pydantic import BaseModel
+from pydantic import json
 
-from api.config import Config
+from api.config import Config, get_dynamic_api_key
 from api.core.db_resolver import resolver_db
 from api.agents.utils import filter_thinking_process
 
@@ -219,6 +220,10 @@ class Retriever:
             kwargs["api_base"] = custom_api_base
 
         try:
+            dynamic_key = get_dynamic_api_key(model)
+            if dynamic_key and not custom_api_key:
+                kwargs["api_key"] = dynamic_key
+                
             completion_result = await acompletion(
                 model=model,
                 response_format=Descriptions,

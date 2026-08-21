@@ -13,6 +13,8 @@ import tqdm
 
 from api.loaders.base_loader import BaseLoader  # pylint: disable=import-error
 from api.loaders.graph_loader import load_to_graph  # pylint: disable=import-error
+from api.core.db_pool import pool_manager
+
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s - %(levelname)s - %(message)s")
@@ -52,21 +54,24 @@ class PostgresLoader(BaseLoader):
         cursor: Any, table_name: str, col_name: str, sample_size: int = 3
     ) -> List[Any]:
         query = sql.SQL("""
-            SELECT {col}
+            SELECT DISTINCT {col}
             FROM (
-                SELECT DISTINCT {col}
+                SELECT {col}
                 FROM {table}
                 WHERE {col} IS NOT NULL
-            ) AS distinct_vals
-            ORDER BY RANDOM()
+                LIMIT 1000
+            ) AS sub
             LIMIT %s;
         """).format(
             col=sql.Identifier(col_name),
             table=sql.Identifier(table_name)
         )
-        cursor.execute(query, (sample_size,))
-        sample_results = cursor.fetchall()
-        return [row[0] for row in sample_results if row[0] is not None]
+        try:
+            cursor.execute(query, (sample_size,))
+            sample_results = cursor.fetchall()
+            return [row[0] for row in sample_results if row[0] is not None]
+        except Exception:
+            return []
 
     @staticmethod
     def _serialize_value(value):
@@ -117,9 +122,11 @@ class PostgresLoader(BaseLoader):
         conn = None
         cursor = None
         try:
+            from api.core.pipeline import graph_name
             schema = PostgresLoader.parse_schema_from_url(connection_url)
 
-            conn = psycopg2.connect(connection_url)
+            engine = pool_manager.get_engine(connection_url)
+            conn = engine.raw_connection()
             cursor = conn.cursor()
 
             cursor.execute(
@@ -143,7 +150,7 @@ class PostgresLoader(BaseLoader):
             conn = None
 
             yield True, "Loading data into graph..."
-            await load_to_graph(f"{prefix}_{db_name}", entities, relationships,
+            await load_to_graph(graph_name(prefix, db_name), entities, relationships,
                                 db_name=db_name, db_url=connection_url, db=db)
 
             yield True, (f"PostgreSQL schema loaded successfully. "
@@ -410,7 +417,8 @@ class PostgresLoader(BaseLoader):
     @staticmethod
     def execute_sql_query(sql_query: str, db_url: str) -> List[Dict[str, Any]]:
         try:
-            conn = psycopg2.connect(db_url)
+            engine = pool_manager.get_engine(db_url)
+            conn = engine.raw_connection()
             cursor = conn.cursor()
 
             cursor.execute(sql_query)

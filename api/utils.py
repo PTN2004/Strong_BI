@@ -2,7 +2,7 @@ import json
 from typing import List, Dict, Optional, TypedDict
 from litellm import batch_completion, completion
 
-from api.config import Config
+from api.config import Config, get_dynamic_api_key
 from api.agents.utils import filter_thinking_process
 
 
@@ -78,7 +78,7 @@ def create_combined_description(
             model=Config.COMPLETION_MODEL,
             messages=batch_message,
             temperature=0.0,
-
+            api_key=get_dynamic_api_key(Config.COMPLETION_MODEL)
         )
         
         for offset, batch_response in enumerate(response):
@@ -147,6 +147,7 @@ def generate_db_description(
         max_tokens=max_tokens,
         n=1,
         stop=None,
+        api_key=get_dynamic_api_key(Config.COMPLETION_MODEL)
     )
     raw_content = response.choices[0].message["content"]
     if raw_content:

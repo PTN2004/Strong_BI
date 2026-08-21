@@ -27,6 +27,9 @@ dependencies = [
     "python-dotenv~=1.2.2",
     "aiohttp>=3.13.5",
     "sqlalchemy>=2.0.51",
+    "sqlglot>=23.0.0",
+    "pandas>=3.0.5",
+    "langgraph>=1.2.10",
 ]
 
 [build-system]

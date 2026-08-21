@@ -4,7 +4,7 @@ import re
 from typing import Any, Dict, List
 
 from litellm import completion
-from api.config import Config
+from api.config import Config, get_dynamic_api_key
 
 
 def run_completion(messages: List[Dict[str, str]], custom_model: str = None,
@@ -35,13 +35,14 @@ def run_completion(messages: List[Dict[str, str]], custom_model: str = None,
             api_base = os.getenv("OLLAMA_API_BASE")
             if api_base:
                 completion_args["api_base"] = api_base.strip()
-        elif model.startswith("openai/"):
+        elif model.startswith("openai/") or model.startswith("gemini/") or model.startswith("openrouter/"):
             api_base = os.getenv("OPENAI_API_BASE")
-            if api_base:
+            if api_base and model.startswith("openai/"):
                 completion_args["api_base"] = api_base.strip()
-            api_key = os.getenv("OPENAI_API_KEY")
-            if api_key:
-                completion_args["api_key"] = api_key.strip()
+            
+            dynamic_key = get_dynamic_api_key(model)
+            if dynamic_key:
+                completion_args["api_key"] = dynamic_key
 
     completion_args["timeout"] = 120
 

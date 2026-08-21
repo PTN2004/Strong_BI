@@ -368,6 +368,61 @@ export class DatabaseService {
   }
 
   /**
+   * Get schema metadata (Tables and Columns with descriptions)
+   */
+  static async getSchemaMetadata(id: string): Promise<{ table_name: string; description: string; columns: { name: string; type: string; description: string; key_type: string }[] }[]> {
+    try {
+      const response = await fetch(
+        buildApiUrl(`/graphs/${encodeURIComponent(id)}/schema_metadata`),
+        {
+          credentials: 'include',
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch schema metadata');
+      }
+
+      const data = await response.json();
+      return data.metadata || [];
+    } catch (error) {
+      console.error('Failed to get schema metadata:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update schema metadata (description for a table or column)
+   */
+  static async updateSchemaMetadata(
+    id: string,
+    updateData: { type: 'table' | 'column'; table_name: string; column_name?: string; description: string }
+  ): Promise<void> {
+    try {
+      const response = await fetch(
+        buildApiUrl(`/graphs/${encodeURIComponent(id)}/schema_metadata`),
+        {
+          method: 'PUT',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            ...csrfHeaders(),
+          },
+          body: JSON.stringify(updateData),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to update schema metadata');
+      }
+    } catch (error) {
+      console.error('Failed to update schema metadata:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Update user rules for a specific database
    */
   static async updateUserRules(graphId: string, userRules: string): Promise<void> {

@@ -117,7 +117,7 @@ class FalkorDBGraphDatabase(GraphDatabase):
             raise RuntimeError("Database not connected")
 
         try:
-            graphs = await self._client.list_graphs()
+            graphs = self._client.list_graphs()
             return graphs if graphs else []
 
         except Exception as e:

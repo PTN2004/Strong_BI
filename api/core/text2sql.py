@@ -69,14 +69,15 @@ async def get_schema(user_id: str, graph_id: str, db=None):
     namespaced = graph_name(user_id, graph_id)
     graph = None
     try:
-        graph = resolver_db(db)
-        if db is None:
-            await graph.connect()
+        if db is not None:
+            graph = db
+        else:
+            from api.graph_db.factory import GraphDatabaseFactory
+            graph = await GraphDatabaseFactory.get_instance()
+            
         graph.select_graph(namespaced)
     except Exception as e:  
         logging.error("Failed to select graph %s: %s", sanitize_log_input(namespaced), e)
-        if graph and db is None:
-            await graph.disconnect()
         raise GraphNotFoundError("Graph not found or database error") from e
 
     try:
@@ -93,9 +94,33 @@ async def get_schema(user_id: str, graph_id: str, db=None):
         RETURN DISTINCT src_table.name AS source, tgt_table.name AS target
         """
 
+        metrics_query = """
+        MATCH (m:Metric)
+        RETURN m.name AS metric, m.description AS description, m.formula AS formula
+        """
+
+        dimensions_query = """
+        MATCH (d:Dimension)
+        RETURN d.name AS dimension, d.description AS description
+        """
+
+        metric_links_query = """
+        MATCH (m:Metric)-[:CALCULATED_FROM]->(t:Table)
+        RETURN m.name AS source, t.name AS target
+        """
+
+        dimension_links_query = """
+        MATCH (d:Dimension)-[:BELONGS_TO_CONCEPT]->(c:Column)-[:BELONGS_TO]->(t:Table)
+        RETURN DISTINCT d.name AS source, t.name AS target
+        """
+
         try:
             tables_res = (await graph.query(tables_query)).result_set
             links_res = (await graph.query(links_query)).result_set
+            metrics_res = (await graph.query(metrics_query)).result_set
+            dimensions_res = (await graph.query(dimensions_query)).result_set
+            metric_links_res = (await graph.query(metric_links_query)).result_set
+            dimension_links_res = (await graph.query(dimension_links_query)).result_set
         except Exception as e:  
             logging.error("Error querying graph data for %s: %s", sanitize_log_input(namespaced), e)
             raise InternalError("Failed to read graph data") from e
@@ -128,12 +153,40 @@ async def get_schema(user_id: str, graph_id: str, db=None):
             nodes.append({
                 "id": table_name,
                 "name": table_name,
+                "label": "Table",
                 "columns": normalized,
+            })
+
+        for row in metrics_res:
+            metric_name = row.get("metric")
+            if not metric_name:
+                continue
+            nodes.append({
+                "id": metric_name,
+                "name": metric_name,
+                "label": "Metric",
+                "description": row.get("description", ""),
+                "formula": row.get("formula", ""),
+            })
+
+        for row in dimensions_res:
+            dim_name = row.get("dimension")
+            if not dim_name:
+                continue
+            nodes.append({
+                "id": dim_name,
+                "name": dim_name,
+                "label": "Dimension",
+                "description": row.get("description", ""),
             })
 
         links = []
         seen = set()
-        for row in links_res:
+        
+        # Combine all link results
+        all_links = links_res + metric_links_res + dimension_links_res
+        
+        for row in all_links:
             source = row.get("source")
             target = row.get("target")
             
@@ -148,8 +201,7 @@ async def get_schema(user_id: str, graph_id: str, db=None):
 
         return {"nodes": nodes, "links": links}
     finally:
-        if graph and db is None:
-            await graph.disconnect()
+        pass
 
 
 @dataclass(frozen=True)
@@ -265,7 +317,7 @@ async def run_query(
     retriever = Retriever(graph_id, db)
     
     overall_start = time.perf_counter()
-    namespaced = graph_name(user_id, graph_id)
+    namespaced = graph_id
     queries_history, result_history, instructions, use_user_rules = (
         validate_and_truncate_chat(chat_data)
     )
@@ -828,8 +880,14 @@ async def delete_database(user_id: str, graph_id: str, db=None):
         raise InvalidArgumentError("Demo graphs cannot be deleted")
 
     try:
-        graph = resolver_db(db).select_graph(namespaced)
-        await graph.delete()
+        if db is not None:
+            db_instance = db
+        else:
+            from api.graph_db.factory import GraphDatabaseFactory
+            db_instance = await GraphDatabaseFactory.get_instance()
+            
+        db_instance.select_graph(namespaced)
+        await db_instance.clear_graph()
         return {"success": True, "graph": graph_id}
     except ResponseError as re:
         raise GraphNotFoundError("Failed to delete graph, Graph not found") from re
@@ -841,3 +899,118 @@ async def delete_database(user_id: str, graph_id: str, db=None):
             "Unexpected error deleting graph %s: %s", sanitize_log_input(namespaced), e,
         )
         raise InternalError("Failed to delete graph") from e
+
+async def get_schema_metadata(user_id: str, graph_id: str, db=None):
+    namespaced = graph_name(user_id, graph_id)
+    try:
+        if db is not None:
+            graph = db
+        else:
+            from api.graph_db.factory import GraphDatabaseFactory
+            graph = await GraphDatabaseFactory.get_instance()
+            
+        graph.select_graph(namespaced)
+    except Exception as e:
+        logging.error("Failed to select graph %s: %s", sanitize_log_input(namespaced), e)
+        raise GraphNotFoundError("Graph not found or database error") from e
+
+    try:
+        query = """
+        MATCH (t:Table)
+        OPTIONAL MATCH (c:Column)-[:BELONGS_TO]->(t)
+        RETURN t.name AS table, t.description AS description, collect(DISTINCT {name: c.name, type: c.type, description: c.description, key_type: c.key_type}) AS columns
+        """
+        res = await graph.query(query)
+        metadata = []
+        for row in res.result_set:
+            if isinstance(row, dict):
+                metadata.append({
+                    "table_name": row.get("table", ""),
+                    "description": row.get("description") or "",
+                    "columns": row.get("columns") or []
+                })
+            else:
+                metadata.append({
+                    "table_name": row[0],
+                    "description": row[1] or "",
+                    "columns": row[2] or []
+                })
+        return metadata
+    except Exception as e:
+        logging.error("Error getting schema metadata: %s", str(e))
+        raise InternalError("Failed to get schema metadata") from e
+
+
+async def update_schema_metadata(user_id: str, graph_id: str, update_data: dict, db=None):
+    namespaced = graph_name(user_id, graph_id)
+    try:
+        if db is not None:
+            graph = db
+        else:
+            from api.graph_db.factory import GraphDatabaseFactory
+            graph = await GraphDatabaseFactory.get_instance()
+            
+        graph.select_graph(namespaced)
+    except Exception as e:
+        logging.error("Failed to select graph %s: %s", sanitize_log_input(namespaced), e)
+        raise GraphNotFoundError("Graph not found or database error") from e
+
+    node_type = update_data.get("type")
+    table_name = update_data.get("table_name")
+    column_name = update_data.get("column_name")
+    description = update_data.get("description", "")
+
+    if not table_name:
+        raise InvalidArgumentError("table_name is required")
+
+    from api.config import Config
+    import asyncio
+    
+    try:
+        embedding_model = Config.EMBEDDING_MODEL
+        embedding_result = await asyncio.to_thread(embedding_model.embed, description)
+        if not embedding_result or not embedding_result[0]:
+            raise InternalError("Failed to generate embedding for the new description")
+        
+        new_embedding = embedding_result[0]
+        
+        if node_type == "table":
+            query = f"""
+            MATCH (t:Table {{name: $table_name}})
+            SET t.description = $desc, t.embedding = {graph.format_vector("embedding")}
+            RETURN t.name
+            """
+            params = {
+                "table_name": table_name,
+                "desc": description,
+                "embedding": new_embedding
+            }
+        elif node_type == "column":
+            if not column_name:
+                raise InvalidArgumentError("column_name is required for column update")
+            query = f"""
+            MATCH (t:Table {{name: $table_name}})<-[:BELONGS_TO]-(c:Column {{name: $column_name}})
+            SET c.description = $desc, c.embedding = {graph.format_vector("embedding")}
+            RETURN c.name
+            """
+            params = {
+                "table_name": table_name,
+                "column_name": column_name,
+                "desc": description,
+                "embedding": new_embedding
+            }
+        else:
+            raise InvalidArgumentError("type must be 'table' or 'column'")
+
+        res = await graph.query(query, params)
+        if not res.result_set:
+            raise InvalidArgumentError(f"{node_type.capitalize()} not found")
+            
+        return {"success": True, "message": "Metadata updated successfully"}
+        
+    except (InvalidArgumentError, InternalError):
+        raise
+    except Exception as e:
+        logging.error("Error updating schema metadata: %s", str(e))
+        raise InternalError(f"Failed to update schema metadata: {str(e)}") from e
+

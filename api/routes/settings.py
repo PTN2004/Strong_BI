@@ -44,7 +44,7 @@ async def validate_api_key(request: Request, data: ValidateKeyRequest):  # pylin
         )
 
     # Validate vendor — only key-based vendors can be validated via API call
-    validatable_vendors = ("openai", "anthropic", "gemini", "cohere")
+    validatable_vendors = ("openai", "anthropic", "gemini", "cohere", "openrouter")
     if vendor not in validatable_vendors:
         allowed = ", ".join(validatable_vendors)
         return JSONResponse(

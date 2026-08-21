@@ -16,8 +16,8 @@ export class ChatService {
   static async *streamQuery(request: ChatRequest): AsyncGenerator<StreamMessage, void, unknown> {
     try {
       // The backend expects POST /graphs/{database_id}/v4
-      // We switch to /v4 to use the new SchemaFilterAgent + RetrieverV2 implementation
-      const endpoint = `/graphs/${encodeURIComponent(request.database)}/v2`;
+      // We switch to /v4
+      const endpoint = `/graphs/${encodeURIComponent(request.database)}/v4`;
       
       // Transform conversation history to backend format
       // Backend expects:

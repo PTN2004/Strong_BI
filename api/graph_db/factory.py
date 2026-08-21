@@ -44,6 +44,7 @@ class GraphDatabaseFactory:
             username=neo4j_username,
             password=neo4j_password,
             database=neo4j_database,
+            is_enterprise=os.getenv("NEO4J_ENTERPRISE", "false").lower() in ("true", "1", "yes")
         )
 
     @staticmethod

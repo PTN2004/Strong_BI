@@ -1,511 +1,368 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
-import type { Data, FalkorDBCanvas, GraphNode } from '@falkordb/canvas';
-import { ZoomIn, ZoomOut, Locate, X, GripVertical } from 'lucide-react';
+import React, { useEffect, useState, useCallback } from 'react';
+import { 
+  ReactFlow, 
+  Background, 
+  Controls, 
+  MiniMap, 
+  useNodesState, 
+  useEdgesState, 
+  MarkerType,
+  Handle,
+  Position,
+  Panel,
+  ReactFlowProvider
+} from '@xyflow/react';
+import '@xyflow/react/dist/style.css';
+import dagre from 'dagre';
+
+import { X, Network, Maximize, Loader2, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useDatabase } from '@/contexts/DatabaseContext';
 import { DatabaseService } from '@/services/database';
 import { useToast } from '@/components/ui/use-toast';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { CypherConsole } from './CypherConsole';
-import { GraphDataExplorer } from './GraphDataExplorer';
+import { buildApiUrl } from '@/config/api';
 
-interface SchemaNode {
-  id: number;
-  userId: string;
-  name: string;
-  columns: Array<string | { name: string; type?: string; dataType?: string }>;
-}
+// --- Custom Nodes ---
 
-interface SchemaLink {
-  source: number;
-  target: number;
-}
+// 1. Table Node (Green theme)
+const TableNode = ({ data }: any) => {
+  return (
+    <div className="bg-white dark:bg-[#0f172a] border-2 border-emerald-500 rounded-xl shadow-lg min-w-[220px] overflow-hidden flex flex-col font-sans">
+      <Handle type="target" position={Position.Top} className="w-2 h-2 bg-emerald-500 border-none" />
+      <div className="bg-emerald-50 dark:bg-emerald-950/30 border-b border-emerald-100 dark:border-emerald-900/50 p-3 flex items-center justify-between">
+        <span className="font-bold text-emerald-700 dark:text-emerald-400 text-sm tracking-tight">{data.label}</span>
+        <span className="text-[9px] uppercase font-bold text-emerald-500/70 bg-emerald-100 dark:bg-emerald-900/30 px-1.5 py-0.5 rounded">Table</span>
+      </div>
+      <div className="p-2 flex flex-col gap-1.5 bg-white dark:bg-[#0f172a]">
+        {data.columns?.map((col: any, idx: number) => {
+          const colName = typeof col === 'string' ? col : col.name;
+          const colType = typeof col === 'string' ? '' : (col.dataType || col.type || '');
+          return (
+            <div key={idx} className="flex justify-between items-center text-[11px] px-2 py-1 rounded bg-gray-50 dark:bg-gray-900/50 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors group">
+              <span className="font-semibold text-gray-700 dark:text-gray-300 group-hover:text-emerald-600 dark:group-hover:text-emerald-400">{colName}</span>
+              <span className="text-gray-400 dark:text-gray-500 font-mono text-[9px]">{colType}</span>
+            </div>
+          );
+        })}
+        {(!data.columns || data.columns.length === 0) && (
+          <div className="text-[11px] text-gray-400 text-center italic py-1">No columns</div>
+        )}
+      </div>
+      <Handle type="source" position={Position.Bottom} className="w-2 h-2 bg-emerald-500 border-none" />
+    </div>
+  );
+};
 
-interface SchemaData {
-  nodes: SchemaNode[];
-  links: SchemaLink[];
-  nodesMap: Map<number, SchemaNode>
-}
+// 2. Metric Node (Yellow theme)
+const MetricNode = ({ data }: any) => {
+  return (
+    <div className="bg-white dark:bg-[#0f172a] border-2 border-amber-500 rounded-xl shadow-lg min-w-[180px] overflow-hidden flex flex-col font-sans">
+      <Handle type="target" position={Position.Top} className="w-2 h-2 bg-amber-500 border-none" />
+      <div className="bg-amber-50 dark:bg-amber-950/30 p-3 flex items-center justify-between">
+        <span className="font-bold text-amber-700 dark:text-amber-400 text-sm tracking-tight">{data.label}</span>
+        <span className="text-[9px] uppercase font-bold text-amber-500/70 bg-amber-100 dark:bg-amber-900/30 px-1.5 py-0.5 rounded">Metric</span>
+      </div>
+      {data.expr && (
+        <div className="px-3 py-2 bg-white dark:bg-[#0f172a] border-t border-amber-100 dark:border-amber-900/30">
+          <p className="text-[10px] text-gray-500 dark:text-gray-400 font-mono break-all">{data.expr}</p>
+        </div>
+      )}
+      <Handle type="source" position={Position.Bottom} className="w-2 h-2 bg-amber-500 border-none" />
+    </div>
+  );
+};
 
+// 3. Dimension Node (Purple theme)
+const DimensionNode = ({ data }: any) => {
+  return (
+    <div className="bg-white dark:bg-[#0f172a] border-2 border-purple-500 rounded-xl shadow-lg min-w-[180px] overflow-hidden flex flex-col font-sans">
+      <Handle type="target" position={Position.Top} className="w-2 h-2 bg-purple-500 border-none" />
+      <div className="bg-purple-50 dark:bg-purple-950/30 p-3 flex items-center justify-between">
+        <span className="font-bold text-purple-700 dark:text-purple-400 text-sm tracking-tight">{data.label}</span>
+        <span className="text-[9px] uppercase font-bold text-purple-500/70 bg-purple-100 dark:bg-purple-900/30 px-1.5 py-0.5 rounded">Dim</span>
+      </div>
+      {data.expr && (
+        <div className="px-3 py-2 bg-white dark:bg-[#0f172a] border-t border-purple-100 dark:border-purple-900/30">
+          <p className="text-[10px] text-gray-500 dark:text-gray-400 font-mono break-all">{data.expr}</p>
+        </div>
+      )}
+      <Handle type="source" position={Position.Bottom} className="w-2 h-2 bg-purple-500 border-none" />
+    </div>
+  );
+};
+
+const nodeTypes = {
+  table: TableNode,
+  metric: MetricNode,
+  dimension: DimensionNode,
+};
+
+// --- DAGRE LAYOUT ---
+const dagreGraph = new dagre.graphlib.Graph();
+dagreGraph.setDefaultEdgeLabel(() => ({}));
+
+const getLayoutedElements = (nodes: any[], edges: any[], direction = 'TB') => {
+  const isHorizontal = direction === 'LR';
+  dagreGraph.setGraph({ rankdir: direction, nodesep: 100, ranksep: 120 });
+
+  nodes.forEach((node) => {
+    // Estimate node size based on type and content
+    let width = 220;
+    let height = 150;
+    if (node.type === 'metric' || node.type === 'dimension') {
+      width = 180;
+      height = 80;
+    } else if (node.type === 'table') {
+      const cols = node.data.columns?.length || 0;
+      height = 40 + (cols * 24); // header + cols
+    }
+    dagreGraph.setNode(node.id, { width, height });
+  });
+
+  edges.forEach((edge) => {
+    dagreGraph.setEdge(edge.source, edge.target);
+  });
+
+  dagre.layout(dagreGraph);
+
+  const layoutedNodes = nodes.map((node) => {
+    const nodeWithPosition = dagreGraph.node(node.id);
+    return {
+      ...node,
+      targetPosition: isHorizontal ? Position.Left : Position.Top,
+      sourcePosition: isHorizontal ? Position.Right : Position.Bottom,
+      // Shift node to center based on width/height
+      position: {
+        x: nodeWithPosition.x - nodeWithPosition.width / 2,
+        y: nodeWithPosition.y - nodeWithPosition.height / 2,
+      },
+    };
+  });
+
+  return { nodes: layoutedNodes, edges };
+};
+
+// --- MAIN COMPONENT ---
 interface SchemaViewerProps {
   isOpen: boolean;
   onClose: () => void;
-  onWidthChange?: (width: number) => void;
-  sidebarWidth?: number;
-  side?: 'left' | 'right';
+  graphId: string;
 }
 
-const SchemaViewer = ({ isOpen, onClose, onWidthChange, sidebarWidth = 64, side = 'left' }: SchemaViewerProps) => {
-  const canvasRef = useRef<FalkorDBCanvas>(null);
-  const resizeRef = useRef<HTMLDivElement>(null);
-  const [schemaData, setSchemaData] = useState<SchemaData | null>(null);
-  const [loading, setLoading] = useState(false);
-  const { selectedGraph } = useDatabase();
+const SchemaViewerFlow = ({ graphId, onClose }: { graphId: string, onClose: () => void }) => {
+  const [nodes, setNodes, onNodesChange] = useNodesState([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+  const { selectedGraph } = useDatabase();
 
-  const [activeTab, setActiveTab] = useState("schema");
-
-  // Track current theme for canvas colors
-  const [theme, setTheme] = useState<string>(() => {
-    return document.documentElement.getAttribute('data-theme') || 'dark';
-  });
-
-  // Listen for theme changes
-  useEffect(() => {
-    const observer = new MutationObserver((mutations) => {
-      mutations.forEach((mutation) => {
-        if (mutation.type === 'attributes' && mutation.attributeName === 'data-theme') {
-          const newTheme = document.documentElement.getAttribute('data-theme') || 'dark';
-          setTheme(newTheme);
-        }
-      });
-    });
-
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['data-theme']
-    });
-
-    return () => observer.disconnect();
-  }, []);
-
-  const NODE_WIDTH = 260;
-  const MIN_WIDTH = 400;
-  const MAX_WIDTH_PERCENT = 0.9;
-  const DEFAULT_WIDTH_PERCENT = 0.7;
-
-  const [width, setWidth] = useState(() => {
-    const initialWidth = Math.floor(window.innerWidth * DEFAULT_WIDTH_PERCENT);
-    return initialWidth;
-  });
-  const [isResizing, setIsResizing] = useState(false);
-  const [canvasLoaded, setCanvasLoaded] = useState(false);
-
-  // Notify parent of width changes
-  useEffect(() => {
-    if (onWidthChange) {
-      onWidthChange(width);
-    }
-  }, [width, onWidthChange]);
-
-  // Load falkordb-canvas dynamically
-  useEffect(() => {
-    import('@falkordb/canvas').then(() => {
-      setCanvasLoaded(true);
-    });
-  }, []);
-
-  useEffect(() => {
-    if (isOpen && selectedGraph) {
-      loadSchemaData();
-    }
-  }, [isOpen, selectedGraph]);
-
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!isResizing) return;
-
-      const newWidth = side === 'right' 
-        ? window.innerWidth - e.clientX
-        : e.clientX - sidebarWidth;
-      const maxWidth = Math.floor(window.innerWidth * MAX_WIDTH_PERCENT);
-
-      if (newWidth >= MIN_WIDTH && newWidth <= maxWidth) {
-        setWidth(newWidth);
-      }
-    };
-
-    const handleMouseUp = () => {
-      setIsResizing(false);
-    };
-
-    if (isResizing) {
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
-      document.body.style.cursor = 'ew-resize';
-      document.body.style.userSelect = 'none';
-    }
-
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
-    };
-  }, [isResizing, sidebarWidth, side]);
-
-  const loadSchemaData = async () => {
-    if (!selectedGraph) return;
-
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await DatabaseService.getGraphData(selectedGraph.id);
+      // Fetch Tables from Schema
+      const schemaData = await DatabaseService.getGraphData(graphId);
+      
+      // Fetch Metrics/Dimensions from Semantic Layer
+      let semanticData: any = { metrics: [], dimensions: [] };
+      try {
+        const semanticResponse = await fetch(buildApiUrl(`/graphs/${graphId}/semantic`), { credentials: 'include' });
+        if (semanticResponse.ok) {
+          const sData = await semanticResponse.json();
+          semanticData = sData || { metrics: [], dimensions: [] };
+        }
+      } catch (e) {
+        console.warn("Could not load semantic data", e);
+      }
 
-      // Create a mapping from old IDs to new IDs
-      const oldIdToNewId = new Map<string, number>();
+      const newNodes: any[] = [];
+      const newEdges: any[] = [];
 
-      // Remap nodes with new sequential IDs
-      data.nodes = data.nodes.map((node, index) => {
-        const newId = index + 1;
-        oldIdToNewId.set(node.id, newId);
-        return {
-          ...node,
-          userId: node.id,
-          id: newId,
-        };
-      });
+      // 1. Process Tables
+      const tablesMap = new Map<string, string>(); // name to node id
+      if (schemaData && schemaData.nodes) {
+        schemaData.nodes.forEach((node: any, idx: number) => {
+          const nodeId = `table-${node.id || idx}`;
+          tablesMap.set(node.name.toLowerCase(), nodeId);
+          newNodes.push({
+            id: nodeId,
+            type: 'table',
+            data: { label: node.name, columns: node.columns || [] },
+            position: { x: 0, y: 0 },
+          });
+        });
 
-      // Update links to use the new node IDs
-      data.links = data.links
-        .map((link) => ({
-          source: oldIdToNewId.get(link.source)!,
-          target: oldIdToNewId.get(link.target)!,
-        }))
-        .filter((link) => link.source !== undefined && link.target !== undefined);
+        // Edges for foreign keys (if available in schemaData.links)
+        if (schemaData.links) {
+          schemaData.links.forEach((link: any, idx: number) => {
+            const sourceNode = schemaData.nodes.find((n:any) => n.id === link.source || n.userId === link.source);
+            const targetNode = schemaData.nodes.find((n:any) => n.id === link.target || n.userId === link.target);
+            if (sourceNode && targetNode) {
+              const sourceId = `table-${sourceNode.id || schemaData.nodes.indexOf(sourceNode)}`;
+              const targetId = `table-${targetNode.id || schemaData.nodes.indexOf(targetNode)}`;
+              newEdges.push({
+                id: `edge-tbl-${idx}`,
+                source: sourceId,
+                target: targetId,
+                animated: true,
+                style: { stroke: '#94a3b8', strokeWidth: 1.5, strokeDasharray: '5,5' },
+                markerEnd: { type: MarkerType.ArrowClosed, color: '#94a3b8' },
+              });
+            }
+          });
+        }
+      }
 
-      const remapNodesMap = new Map<number, SchemaNode>();
-      data.nodes.forEach((node) => {
-        remapNodesMap.set(node.id, node);
-      });
+      // 2. Process Metrics
+      if (semanticData.metrics) {
+        semanticData.metrics.forEach((metric: any, idx: number) => {
+          const nodeId = `metric-${idx}`;
+          newNodes.push({
+            id: nodeId,
+            type: 'metric',
+            data: { label: metric.name, expr: metric.expr || metric.sql || metric.description },
+            position: { x: 0, y: 0 },
+          });
+          
+          // Connect to related table if inferred from expression
+          const exprLower = (metric.expr || metric.sql || '').toLowerCase();
+          for (const [tblName, tblId] of tablesMap.entries()) {
+            if (exprLower.includes(tblName)) {
+              newEdges.push({
+                id: `edge-met-${idx}-${tblId}`,
+                source: tblId,
+                target: nodeId,
+                animated: false,
+                style: { stroke: '#f59e0b', strokeWidth: 2 },
+                markerEnd: { type: MarkerType.ArrowClosed, color: '#f59e0b' },
+              });
+            }
+          }
+        });
+      }
 
-      setSchemaData({
-        nodes: data.nodes,
-        links: data.links,
-        nodesMap: remapNodesMap,
-      });
-    } catch (error) {
-      console.error('Failed to load schema data:', error);
-      toast({
-        title: "Failed to load Schema",
-        description: "Could not retrieve schema data from the database.",
-        variant: "destructive",
-      });
+      // 3. Process Dimensions
+      if (semanticData.dimensions) {
+        semanticData.dimensions.forEach((dim: any, idx: number) => {
+          const nodeId = `dim-${idx}`;
+          newNodes.push({
+            id: nodeId,
+            type: 'dimension',
+            data: { label: dim.name, expr: dim.expr || dim.sql || dim.description },
+            position: { x: 0, y: 0 },
+          });
+
+          // Connect to related table
+          const exprLower = (dim.expr || dim.sql || '').toLowerCase();
+          for (const [tblName, tblId] of tablesMap.entries()) {
+            if (exprLower.includes(tblName)) {
+              newEdges.push({
+                id: `edge-dim-${idx}-${tblId}`,
+                source: tblId,
+                target: nodeId,
+                animated: false,
+                style: { stroke: '#8b5cf6', strokeWidth: 2 },
+                markerEnd: { type: MarkerType.ArrowClosed, color: '#8b5cf6' },
+              });
+            }
+          }
+        });
+      }
+
+      // Auto Layout
+      const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(newNodes, newEdges, 'TB');
+      setNodes(layoutedNodes);
+      setEdges(layoutedEdges);
+
+    } catch (e: any) {
+      toast({ title: "Failed to load Schema", description: e.message, variant: "destructive" });
     } finally {
       setLoading(false);
     }
-  };
+  }, [graphId, toast, setNodes, setEdges]);
 
-  const convertToCanvasData = useCallback((data: SchemaData): Data => {
-    return {
-      nodes: data.nodes.map((node) => ({
-        id: node.id,
-        labels: [node.name],
-        visible: true,
-        color: theme === 'light' ? '#3b82f6' : '#60a5fa',
-        data: {},
-      })),
-      links: data.links.map((link, index) => ({
-        id: index + 1,
-        source: link.source,
-        target: link.target,
-        relationship: 'HAS',
-        visible: true,
-        color: theme === 'light' ? '#cbd5e1' : '#475569',
-        data: {},
-      })),
-    };
-  }, [theme]);
-
-  const handleZoomIn = () => {
-    if (canvasRef.current) {
-      const currentZoom = canvasRef.current.getZoom();
-      canvasRef.current.zoom(currentZoom * 1.2);
-    }
-  };
-
-  const handleZoomOut = () => {
-    if (canvasRef.current) {
-      const currentZoom = canvasRef.current.getZoom();
-      canvasRef.current.zoom(currentZoom / 1.2);
-    }
-  };
-
-  const handleCenter = () => {
-    canvasRef.current?.zoomToFit(1.5);
-  };
-
-  // Set up canvas configuration and data - MUST be in single effect to ensure proper order
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || !schemaData) return;
+    loadData();
+  }, [loadData]);
 
-    const nodeCanvasObject = (node: GraphNode, ctx: CanvasRenderingContext2D) => {
-      const schemaNode = schemaData.nodesMap.get(Number(node.id));
-
-      if (!schemaNode) return;
-
-      const columns = schemaNode.columns || [];
-      const lineHeight = 18;
-      const padding = 12;
-      const headerHeight = 28;
-      const nodeHeight = headerHeight + columns.length * lineHeight + padding * 2;
-
-      ctx.fillStyle = theme === 'light' ? '#f1f5f9' : '#1e293b';
-      ctx.strokeStyle = theme === 'light' ? '#cbd5e1' : '#475569';
-      ctx.lineWidth = 1;
-
-      ctx.beginPath();
-      ctx.roundRect(
-        (node.x || 0) - NODE_WIDTH / 2,
-        (node.y || 0) - nodeHeight / 2,
-        NODE_WIDTH,
-        nodeHeight,
-        8
-      );
-      ctx.fill();
-      ctx.stroke();
-
-      ctx.fillStyle = theme === 'light' ? '#3b82f6' : '#60a5fa';
-      ctx.beginPath();
-      ctx.roundRect(
-        (node.x || 0) - NODE_WIDTH / 2,
-        (node.y || 0) - nodeHeight / 2,
-        NODE_WIDTH,
-        headerHeight,
-        [8, 8, 0, 0]
-      );
-      ctx.fill();
-
-      ctx.fillStyle = theme === 'light' ? '#0f172a' : '#ffffff';
-      ctx.font = 'bold 13px Inter, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(
-        schemaNode.name,
-        node.x || 0,
-        (node.y || 0) - nodeHeight / 2 + headerHeight / 2
-      );
-
-      ctx.font = '12px JetBrains Mono, monospace';
-      const columnTextColor = theme === 'light' ? '#0f172a' : '#f8fafc';
-      const typeTextColor = theme === 'light' ? '#64748b' : '#94a3b8';
-      let colY = (node.y || 0) - nodeHeight / 2 + headerHeight + padding + 8;
-      const startX = (node.x || 0) - NODE_WIDTH / 2 + padding;
-
-      columns.forEach((col: any) => {
-        let name = col;
-        let type = null;
-        if (typeof col === 'object') {
-          name = col.name || '';
-          type = col.type || col.dataType || null;
-        }
-
-        ctx.textAlign = 'left';
-        ctx.fillStyle = columnTextColor;
-        ctx.fillText(name, startX, colY);
-
-        if (type) {
-          ctx.fillStyle = typeTextColor;
-          const nameWidth = ctx.measureText(name).width;
-          const available = NODE_WIDTH - padding * 2 - nameWidth - 8;
-          let typeText = String(type);
-          if (available > 0) {
-            if (ctx.measureText(typeText).width > available) {
-              while (
-                typeText.length > 0 &&
-                ctx.measureText(typeText + '…').width > available
-              ) {
-                typeText = typeText.slice(0, -1);
-              }
-              typeText = typeText + '…';
-            }
-            ctx.textAlign = 'right';
-            ctx.fillText(typeText, (node.x || 0) + NODE_WIDTH / 2 - padding, colY);
-          }
-          ctx.fillStyle = columnTextColor;
-          ctx.textAlign = 'left';
-        }
-
-        colY += lineHeight;
-      });
-    };
-
-    const nodePointerAreaPaint = (node: GraphNode, color: string, ctx: CanvasRenderingContext2D) => {
-      const schemaNode = schemaData.nodesMap.get(Number(node.id));
-
-      if (!schemaNode) return;
-
-      const columns = schemaNode.columns || [];
-      const lineHeight = 14;
-      const padding = 8;
-      const headerHeight = 20;
-      const nodeHeight = headerHeight + columns.length * lineHeight + padding * 2;
-
-      ctx.fillStyle = color;
-      const areaPadding = 5;
-      ctx.fillRect(
-        (node.x || 0) - NODE_WIDTH / 2 - areaPadding,
-        (node.y || 0) - nodeHeight / 2 - areaPadding,
-        NODE_WIDTH + areaPadding * 2,
-        nodeHeight + areaPadding * 2
-      );
-    };
-
-    const canvasData = convertToCanvasData(schemaData);
-
-    canvas.setConfig({
-      autoStopOnSettle: false,
-      node: {
-        nodeCanvasObject,
-        nodePointerAreaPaint,
-      }
-    });
-    
-    canvas.setBackgroundColor(theme === 'light' ? '#ffffff' : '#191919');
-    canvas.setForegroundColor(theme === 'light' ? '#111' : '#f5f5f5');
-    canvas.setData(canvasData);
-
-    // Adjust graph physics to prevent large table nodes from clumping
-    setTimeout(() => {
-      const graph = canvas.getGraph();
-      if (graph) {
-        // Increase repulsion force significantly for large nodes
-        graph.d3Force('charge')?.strength(-2000);
-        // Increase the default distance between connected nodes
-        graph.d3Force('link')?.distance(250);
-        
-        // Reheat simulation to apply the new forces
-        if (typeof graph.d3ReheatSimulation === 'function') {
-          graph.d3ReheatSimulation();
-        }
-      }
-    }, 100);
-  }, [schemaData, theme, canvasLoaded, convertToCanvasData]);
-
-  if (!isOpen) return null;
-
-  const isRightSide = side === 'right';
+  const onLayout = useCallback(() => {
+    const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(nodes, edges, 'TB');
+    setNodes([...layoutedNodes]);
+    setEdges([...layoutedEdges]);
+  }, [nodes, edges, setNodes, setEdges]);
 
   return (
-    <>
-      {/* Mobile overlay backdrop */}
-      <div
-        className="fixed inset-0 bg-black/50 z-40 md:hidden"
-        onClick={onClose}
-      />
-
-      {/* Schema Viewer */}
-      <div
-        data-testid="schema-panel"
-        className={`fixed top-0 h-full bg-background border-l border-r border-border flex flex-col transition-all duration-300
-          ${isOpen ? 'translate-x-0' : isRightSide ? 'translate-x-full' : '-translate-x-full'}
-          ${isOpen ? 'pointer-events-auto' : 'pointer-events-none'}
-          md:z-30 z-50
-          w-[80vw] max-w-[400px] md:max-w-none
-        `}
-        style={{
-          ...(window.innerWidth >= 768 ? {
-            ...(isRightSide 
-              ? { right: 0, left: 'auto', width: `${width}px` } 
-              : { left: `${sidebarWidth}px`, width: `${width}px` }
-            )
-          } : {})
-        }}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-border shrink-0">
-          <h2 className="text-lg font-semibold text-foreground">Database Explorer</h2>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onClose}
-            className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
-          >
-            <X className="h-4 w-4" />
-          </Button>
+    <div className="w-full h-full relative bg-gray-50/50 dark:bg-[#020617]">
+      {loading ? (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/80 dark:bg-black/80 z-50">
+          <Loader2 className="w-10 h-10 animate-spin text-blue-500 mb-4" />
+          <p className="text-sm font-semibold text-gray-500">Generating Schema Diagram...</p>
         </div>
-
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0 overflow-hidden">
-          <div className="px-4 py-2 border-b border-border shrink-0">
-            <TabsList className="w-full grid grid-cols-3">
-              <TabsTrigger value="schema">Schema</TabsTrigger>
-              <TabsTrigger value="explore">Data Graph</TabsTrigger>
-              <TabsTrigger value="cypher">Cypher</TabsTrigger>
-            </TabsList>
-          </div>
-
-          <TabsContent value="schema" className="flex-1 m-0 data-[state=active]:flex flex-col min-h-0 relative outline-none">
-            {/* Controls */}
-            <div className="flex gap-2 p-2 border-b border-border shrink-0">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleZoomIn}
-                className="h-8 w-8 p-0 bg-card border-border text-muted-foreground hover:bg-foreground"
-                title="Zoom In"
-              >
-                <ZoomIn className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleZoomOut}
-                className="h-8 w-8 p-0 bg-card border-border text-muted-foreground hover:bg-foreground"
-                title="Zoom Out"
-              >
-                <ZoomOut className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleCenter}
-                className="h-8 w-8 p-0 bg-card border-border text-muted-foreground hover:bg-foreground"
-                title="Center"
-              >
-                <Locate className="h-4 w-4" />
-              </Button>
-            </div>
-
-            {/* Graph Container */}
-            <div className="flex-1 w-full bg-background relative overflow-hidden">
-              {loading && (
-                <div className="flex items-center justify-center h-full">
-                  <div className="text-muted-foreground">Loading schema...</div>
-                </div>
-              )}
-              {!loading && canvasLoaded && schemaData && schemaData.nodes.length > 0 && (
-                <falkordb-canvas ref={canvasRef} node-mode='replace' class="block w-full h-full" style={{ width: '100%', height: '100%', display: 'block' }} />
-              )}
-              {!loading && (!schemaData || schemaData.nodes.length === 0) && (
-                <div className="flex items-center justify-center h-full">
-                  <div className="text-center text-muted-foreground">
-                    <p>No schema data available</p>
-                    <p className="text-sm mt-2">
-                      {!selectedGraph ? 'Select a database first' : 'This database has no schema data'}
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-          </TabsContent>
-
-          <TabsContent value="explore" className="flex-1 m-0 data-[state=active]:flex flex-col min-h-0 relative outline-none p-4 overflow-auto">
-            <GraphDataExplorer />
-          </TabsContent>
-
-          <TabsContent value="cypher" className="flex-1 m-0 data-[state=active]:flex flex-col min-h-0 relative outline-none p-4 overflow-auto">
-            <CypherConsole />
-          </TabsContent>
-        </Tabs>
-
-        {/* Resize Handle */}
-        <div
-          ref={resizeRef}
-          className={`absolute top-0 w-1 h-full cursor-ew-resize hover:bg-purple-500 transition-colors z-50
-            ${isRightSide ? 'left-0' : 'right-0'}
-          `}
-          onMouseDown={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            setIsResizing(true);
-          }}
+      ) : (
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          nodeTypes={nodeTypes}
+          fitView
+          attributionPosition="bottom-right"
+          minZoom={0.1}
         >
-          <div className={`absolute top-1/2 -translate-y-1/2 -translate-x-1/2 ${isRightSide ? 'left-0' : 'right-0'}`}>
-            <GripVertical className="h-4 w-4 text-border" />
-          </div>
-        </div>
+          <Background color="#cbd5e1" gap={20} size={1.5} />
+          <Controls className="bg-white dark:bg-gray-800 shadow-lg border-none rounded-xl overflow-hidden" />
+          <MiniMap 
+            className="bg-white dark:bg-gray-800 shadow-xl rounded-xl border border-gray-100 dark:border-gray-700" 
+            nodeColor={(n: any) => {
+              if (n.type === 'table') return '#10b981';
+              if (n.type === 'metric') return '#f59e0b';
+              if (n.type === 'dimension') return '#8b5cf6';
+              return '#ccc';
+            }} 
+            maskColor="rgba(0,0,0,0.1)"
+          />
+          <Panel position="top-left" className="m-4">
+            <div className="bg-white/90 dark:bg-black/80 backdrop-blur p-4 rounded-2xl shadow-xl border border-gray-200/50 dark:border-gray-800/50 flex flex-col gap-2">
+              <h3 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <Network className="w-4 h-4 text-blue-500" />
+                Schema Diagram
+              </h3>
+              <p className="text-[10px] text-gray-500 max-w-[200px]">Interactive Entity-Relationship & Semantic graph.</p>
+              
+              <div className="flex flex-col gap-1.5 mt-2 pt-2 border-t border-gray-100 dark:border-gray-800">
+                <div className="flex items-center gap-2 text-xs font-semibold text-emerald-600"><span className="w-2.5 h-2.5 rounded bg-emerald-500"></span> Table</div>
+                <div className="flex items-center gap-2 text-xs font-semibold text-amber-500"><span className="w-2.5 h-2.5 rounded bg-amber-500"></span> Metric</div>
+                <div className="flex items-center gap-2 text-xs font-semibold text-purple-500"><span className="w-2.5 h-2.5 rounded bg-purple-500"></span> Dimension</div>
+              </div>
+              
+              <Button size="sm" variant="outline" className="mt-2 h-8 text-xs" onClick={onLayout}>
+                <RefreshCw className="w-3 h-3 mr-1" /> Auto Layout
+              </Button>
+            </div>
+          </Panel>
+          <Panel position="top-right" className="m-4">
+            <Button size="icon" variant="secondary" onClick={onClose} className="rounded-full shadow-lg h-10 w-10 hover:bg-red-50 hover:text-red-600">
+              <X className="w-5 h-5" />
+            </Button>
+          </Panel>
+        </ReactFlow>
+      )}
+    </div>
+  );
+};
+
+// Wrapper Component that uses absolute overlay instead of whatever the old SchemaViewer did
+const SchemaViewer = ({ isOpen, onClose, graphId }: SchemaViewerProps) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex animate-in fade-in duration-200">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full h-full lg:m-6 lg:rounded-[24px] overflow-hidden bg-white dark:bg-black shadow-2xl border border-gray-200/50 dark:border-gray-800 flex flex-col">
+        <ReactFlowProvider>
+          <SchemaViewerFlow graphId={graphId} onClose={onClose} />
+        </ReactFlowProvider>
       </div>
-    </>
+    </div>
   );
 };
 

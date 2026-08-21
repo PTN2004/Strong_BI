@@ -1,1 +1,0 @@
-"""Test SDK module marker."""

@@ -27,7 +27,8 @@ async def load_to_graph(
     embedding_model = Config.EMBEDDING_MODEL
     vec_len = embedding_model.get_vector_size()
 
-    await asyncio.to_thread(create_combined_description, entities)
+    if Config.USE_LLM_FOR_SCHEMA_DESC:
+        await asyncio.to_thread(create_combined_description, entities)
     try:
         graph.select_graph(graph_id)
         try:
@@ -46,7 +47,10 @@ async def load_to_graph(
         except Exception as e:  
             print(f"Error creating vector indices: {str(e)}")
 
-        db_des = await asyncio.to_thread(generate_db_description, db_name=db_name, table_names=list(entities.keys()))
+        if Config.USE_LLM_FOR_SCHEMA_DESC:
+            db_des = await asyncio.to_thread(generate_db_description, db_name=db_name, table_names=list(entities.keys()))
+        else:
+            db_des = f"Database containing {len(entities.keys())} tables."
         await graph.query(
             """
             MERGE (d:Database {name: $db_name})
@@ -57,7 +61,7 @@ async def load_to_graph(
 
         for table_name, table_info in tqdm.tqdm(entities.items(), desc="Creating Graph Table Nodes"):
             table_desc = table_info["description"]
-            embedding_result = embedding_model.embed(table_desc)
+            embedding_result = await asyncio.to_thread(embedding_model.embed, table_desc)
             fk = json.dumps(table_info.get("foreign_keys", []))
 
             await graph.query(
@@ -90,7 +94,7 @@ async def load_to_graph(
                         desc=f"Creating embeddings for {table_name} columns",
                     ):
 
-                        embedding_result = embedding_model.embed(batch)
+                        embedding_result = await asyncio.to_thread(embedding_model.embed, batch)
                         embed_columns.extend(embedding_result)
                 except Exception as e:  
                     print(f"Error creating embeddings: {str(e)}")
@@ -103,7 +107,7 @@ async def load_to_graph(
             ):
                 if not batch_flag:
                     embed_columns = []
-                    embedding_result = embedding_model.embed(col_info["description"])
+                    embedding_result = await asyncio.to_thread(embedding_model.embed, col_info["description"])
                     embed_columns.extend(embedding_result)
                     idx = 0
 

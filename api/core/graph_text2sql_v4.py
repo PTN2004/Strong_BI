@@ -1,30 +1,30 @@
 import asyncio
 import logging
 import time
-from typing import Any, AsyncGenerator, Optional, TypedDict, List, Union
+import traceback
+from typing import Any, AsyncGenerator, Optional, TypedDict, Union
 from langgraph.graph import StateGraph, START, END
+from datetime import datetime
+import sqlglot
 
 from api.core.errors import InternalError
 from api.core.pipeline import (
     auto_quote_sql_identifiers,
     detect_destructive_operation,
-    format_ai_response,
     get_database_type_and_loader,
     graph_name,
     is_general_graph,
     validate_and_truncate_chat,
     validate_custom_model,
 )
-from api.agents import (
-    AnalysisAgent,
-    FollowUpAgent,
-    HealerAgent,
-    ChartAgent,
-    DataAnalystAgent,
-)
-from api.retriever_v2 import Retriever
-from api.core.text2sql import _build_query_result, _create_memory_tool, _Final
+from api.core.retriever_v4 import RetrieverV4
+from api.agents.insight_and_chart_agent import InsightAndChartAgent
+from api.core.text2sql import _build_query_result, _Final
+from api.agents.utils import run_completion
 
+logger = logging.getLogger(__name__)
+
+MESSAGE_DELIMITER = "\n\n"
 
 class AgentState(TypedDict):
     user_id: str
@@ -35,43 +35,29 @@ class AgentState(TypedDict):
     custom_model: str | None
     custom_api_base: str | None
     instructions: str | None
-    use_user_rules: bool
-    use_memory: bool
     
     # Context
     queries_history: list[str]
-    result_history: list[str]
     db_description: str
     db_url: str
     db_type: str
     loader_class: Any
-    schema_tables: list
-    memory_context: str | None
-    memory_tool: Any
+    graph_context: str
     start_time: float
     
     # Control flow & results
-    is_on_topic: bool
-    relevancy_reason: str
     sql_query: str
-    is_sql_translatable: bool
-    missing_information: str
-    ambiguities: str
-    explanation: str
+    validation_error: str | None
+    validation_attempts: int
     is_destructive: bool
     
     query_results: list
     execution_error: str | None
-    healing_attempts: int
     
-    semantic_feedback: str | None
-    validation_attempts: int
-    
-    follow_up_message: str | None
+    insight: str | None
     chart_config: dict | None
     final_answer: str | None
-    events_to_yield: list[dict] 
-
+    events_to_yield: list[dict]
 
 async def init_state(state: AgentState) -> dict:
     start_time = time.perf_counter()
@@ -80,296 +66,286 @@ async def init_state(state: AgentState) -> dict:
     graph_id = state["graph_id"]
     db = state["db"]
     
-    queries_history, result_history, instructions, use_user_rules = validate_and_truncate_chat(chat_data)
+    queries_history, _, instructions, _ = validate_and_truncate_chat(chat_data)
     custom_api_key = getattr(chat_data, "custom_api_key", None)
     custom_model = getattr(chat_data, "custom_model", None)
     custom_api_base = getattr(chat_data, "custom_api_base", None)
-    use_memory = getattr(chat_data, "use_memory", False)
     validate_custom_model(custom_model)
     
-    namespaced = graph_name(user_id, graph_id)
-    retriever = Retriever(graph_id, db)
-    db_description, db_url = await retriever.get_db_description()
+    # Quick DB resolution (using dummy description as graph context replaces it)
+    from api.retriever import Retriever
+    retriever_v2 = Retriever(graph_id, db)
+    db_desc, db_url = await retriever_v2.get_db_description()
     db_type, loader_class = get_database_type_and_loader(db_url)
-    
-    memory_context = None
-    memory_tool = None
-    if use_memory:
-        memory_tool = await _create_memory_tool(user_id, namespaced, db=db)
-        memory_context = await memory_tool.search_memories(query=queries_history[-1])
         
     return {
         "start_time": start_time,
         "queries_history": queries_history,
-        "result_history": result_history,
         "instructions": instructions,
-        "use_user_rules": use_user_rules,
         "custom_api_key": custom_api_key,
         "custom_model": custom_model,
         "custom_api_base": custom_api_base,
-        "use_memory": use_memory,
-        "db_description": db_description,
+        "db_description": db_desc,
         "db_url": db_url,
         "db_type": db_type,
         "loader_class": loader_class,
-        "memory_tool": memory_tool,
-        "memory_context": memory_context,
-        "healing_attempts": 0,
         "validation_attempts": 0,
         "events_to_yield": [{
             "type": "reasoning_step",
             "final_response": False,
-            "message": "Step 1: Analyzing user query and generating SQL...",
+            "message": "Bước 1: Phân tích câu hỏi và thu thập ngữ nghĩa (Semantic GraphRAG)...",
         }]
     }
 
 async def retrieve_schema(state: AgentState) -> dict:
-    retriever = RetrieverV2(graph_name(state["user_id"], state["graph_id"]), state["db"])
+    retriever = RetrieverV4(state["graph_id"], state["db"])
+    question = state["queries_history"][-1]
     
-    events = [{"type": "reasoning_step", "final_response": False, "message": "Step 0: Retrieving relevant schema tables..."}]
+    graph_context, graph_data = await retriever.find_context(question)
     
-    tables = await retriever.find(
-        state["queries_history"], state["db_description"], state["custom_api_key"], state["custom_model"], state["custom_api_base"]
-    )
-    return {"schema_tables": tables}
+    # Fallback to raw database schema if semantic layer is missing or empty
+    if not graph_context or graph_context == "No context found.":
+        graph_context = f"Raw Database Schema (No Semantic Layer found):\n{state.get('db_description', 'No schema available.')}"
+    
+    events = [
+        {"type": "reasoning_step", "final_response": False, "message": "Bước 2: Phân tích Cấu trúc Đồ thị (Graph Lineage)..."},
+        {"type": "reasoning_graph", "final_response": False, "data": graph_data},
+        {"type": "reasoning_step", "final_response": False, "message": "Bước 3: Sinh SQL dựa trên Ngữ nghĩa Kinh doanh..."}
+    ]
+    
+    return {"graph_context": graph_context, "events_to_yield": events}
 
-def analyze_query(state: AgentState) -> dict:
-    agent_an = AnalysisAgent(
-        state["queries_history"], state["result_history"], state["custom_api_key"], state["custom_model"], state["custom_api_base"]
-    )
+def generate_sql(state: AgentState) -> dict:
+    question = state["queries_history"][-1]
+    context = state["graph_context"]
+    instructions = state.get("instructions", "")
+    val_error = state.get("validation_error")
     
-    instructions = state.get("instructions")
-    if state.get("semantic_feedback"):
-        instructions = (instructions or "") + f"\n\n[VALIDATOR FEEDBACK TO FIX PREVIOUS ATTEMPT]: {state['semantic_feedback']}"
+    system_prompt = f"""You are an elite SQL Developer and Data Engineer. Your task is to translate a user's natural language question into a syntactically correct and highly optimized SQL query based STRICTLY on the provided Semantic & Database Context.
+Target Database Dialect: {state['db_type']}
+
+### SEMANTIC & SCHEMA CONTEXT:
+You will be provided with either a Semantic Layer (Metrics and Dimensions) or a Raw Database Schema.
+- A "Metric" represents a quantitative measure with a predefined SQL formula (e.g., SUM(revenue)).
+- A "Dimension" represents an attribute to group or filter by (e.g., created_at, country).
+
+### STRICT RULES:
+1. **Semantic Compliance**: If the user asks for concepts defined in the Context, you MUST use the exact formula, table, or column provided. Do not guess or invent column names.
+2. **Aggregation & Grouping**: When querying a Metric alongside a Dimension, ensure proper aggregation and include a `GROUP BY` clause for the Dimension.
+3. **Table Joins**: If querying across multiple tables, infer the correct `JOIN` paths from the schema structure or foreign keys. Use appropriate table aliases (e.g., `orders o`).
+4. **Dialect Specifics**: Ensure all functions (e.g., date handling, string manipulation, casting) are 100% compatible with {state['db_type']}.
+5. **No Hallucinations**: Do NOT query tables or columns that do not exist in the Context. If a column is missing, rely on what is available.
+6. **Performance**: Avoid `SELECT *`. Only select the columns necessary to answer the question. Apply `LIMIT` if the user asks for "top N" or "best".
+7. **Output Format**: Return ONLY the raw executable SQL query. Do not wrap it in markdown code blocks like ```sql or ```. Do not provide any explanations. Do not use quotes around the entire string.
+8. **Display Names (Human Readable)**: When grouping by an entity or a dimension (e.g., Area, Customer, Staff), you MUST `JOIN` the corresponding table and select its descriptive name column (e.g., `area_name`, `customer_name`, `staff_name`) in the `SELECT` clause. NEVER select only the `ID` column, as IDs are not readable for end-users.
+9. **Date Context**: Today is {datetime.now().strftime('%Y-%m-%d')}. When the user asks for relative dates (e.g. 'this month', 'today', 'August'), assume this current year/month unless otherwise specified.
+
+### RESPONSE FORMAT:
+SELECT ...
+FROM ...
+WHERE ...
+"""
+
+    user_prompt = f"""### PROVIDED CONTEXT:
+{context}
+
+### USER INSTRUCTIONS:
+{instructions if instructions else 'None'}
+
+### USER QUESTION:
+{question}
+
+Please generate the corresponding {state['db_type']} SQL query:"""
+    
+    if val_error:
+        user_prompt += f"\n\n[PREVIOUS ATTEMPT FAILED WITH ERROR]: {val_error}\nPlease fix the SQL syntax and try again."
         
-    answer_an = agent_an.get_analysis(
-        state["queries_history"][-1], state["schema_tables"], state["db_description"], 
-        instructions, state["memory_context"], state["db_type"], None
-    )
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt}
+    ]
     
-    sql_query = answer_an.get("sql_query", "")
-    is_translatable = answer_an.get("is_sql_translatable", False)
+    sql = run_completion(
+        messages=messages,
+        custom_model=state["custom_model"],
+        custom_api_key=state["custom_api_key"],
+        temperature=0.0
+    ).strip()
     
-    events = [{
-        "type": "sql_query",
-        "data": sql_query,
-        "conf": answer_an.get("confidence", 0),
-        "miss": answer_an.get("missing_information", ""),
-        "amb": answer_an.get("ambiguities", ""),
-        "exp": answer_an.get("explanation", ""),
-        "is_valid": is_translatable,
-        "final_response": False,
-    }]
+    # Cleanup formatting if LLM still returned markdown
+    if sql.startswith("```sql"):
+        sql = sql[6:]
+    if sql.startswith("```"):
+        sql = sql[3:]
+    if sql.endswith("```"):
+        sql = sql[:-3]
     
-    if is_translatable:
-        known_tables = {t[0] for t in state["schema_tables"]} if state["schema_tables"] else set()
-        sql_query, was_modified = auto_quote_sql_identifiers(sql_query, known_tables, state["db_type"])
-        _, is_destructive = detect_destructive_operation(sql_query)
-        if is_destructive and is_general_graph(graph_name(state["user_id"], state["graph_id"])):
-            is_translatable = False # Block it
-            events.append({"type": "error", "final_response": True, "message": "Destructive operation not allowed on demo graphs"})
-
+    sql = sql.strip()
+    
     return {
-        "sql_query": sql_query,
-        "is_sql_translatable": is_translatable,
-        "missing_information": answer_an.get("missing_information", ""),
-        "ambiguities": answer_an.get("ambiguities", ""),
-        "explanation": answer_an.get("explanation", ""),
-        "is_destructive": answer_an.get("is_destructive", False), # Approximation
-        "events_to_yield": events
-    }
-
-def generate_follow_up(state: AgentState) -> dict:
-    if not state.get("loader_class"):
-        msg = "Unable to determine database type"
-    elif not state.get("is_on_topic"):
-        msg = "Off topic question: " + state.get("relevancy_reason", "")
-    else:
-        follow_up_agent = FollowUpAgent(
-            state["queries_history"], state["result_history"], state["custom_api_key"], state["custom_model"], state["custom_api_base"]
-        )
-        msg = follow_up_agent.generate_follow_up_question(
-            user_question=state["queries_history"][-1],
-            analysis_result={"missing_information": state.get("missing_information"), "ambiguities": state.get("ambiguities")}
-        )
-        
-    return {
-        "follow_up_message": msg,
+        "sql_query": sql,
         "events_to_yield": [{
-            "type": "followup_questions",
-            "final_response": True,
-            "message": msg,
-            "missing_information": state.get("missing_information", ""),
-            "ambiguities": state.get("ambiguities", ""),
+            "type": "sql_query",
+            "data": sql,
+            "final_response": False,
         }]
     }
 
-def execute_sql(state: AgentState) -> dict:
-    events = [{"type": "reasoning_step", "final_response": False, "message": "Step 2: Executing SQL query"}]
-    try:
-        query_results = state["loader_class"].execute_sql_query(state["sql_query"], state["db_url"])
-        events.append({"type": "query_result", "data": query_results, "final_response": False})
-        return {"query_results": query_results, "execution_error": None, "events_to_yield": events}
-    except Exception as e:
-        events.append({"type": "reasoning_step", "final_response": False, "message": "SQL execution failed, preparing to heal..."})
-        return {"execution_error": str(e), "events_to_yield": events}
-
-def heal_sql(state: AgentState) -> dict:
-    healer = HealerAgent(max_healing_attempts=3)
-    def _run_sql(sql: str):
-        return state["loader_class"].execute_sql_query(sql, state["db_url"])
-
-    healing_result = healer.heal_and_execute(
-        initial_sql=state["sql_query"],
-        initial_error=state["execution_error"],
-        execute_sql_func=_run_sql,
-        db_description=state["db_description"],
-        question=state["queries_history"][-1],
-        database_type=state["db_type"],
-    )
-    
+def validate_sql(state: AgentState) -> dict:
+    sql = state["sql_query"]
     events = []
-    if not healing_result.get("success"):
-        events.append({
-            "type": "healing_failed", "final_response": False,
-            "message": f"❌ Failed to heal query after {healing_result.get('attempts', 0)} attempt(s)",
-            "final_error": healing_result.get("final_error", state["execution_error"]),
-        })
-        return {"healing_attempts": state["healing_attempts"] + healing_result.get("attempts", 1), "execution_error": healing_result.get("final_error"), "events_to_yield": events}
-    else:
-        events.append({
-            "type": "healing_success", "final_response": False,
-            "message": f"✅ Query healed and executed successfully after {healing_result.get('attempts', 0)} attempt(s)",
-            "healed_sql": healing_result["sql_query"],
-            "attempts": healing_result.get("attempts", 0),
-        })
-        events.append({"type": "query_result", "data": healing_result["query_results"], "final_response": False})
+    is_destructive = False
+    error_msg = None
+    
+    # 1. Check destructive
+    _, is_destructive = detect_destructive_operation(sql)
+    if is_destructive and is_general_graph(state["graph_id"]):
+        error_msg = "Destructive operation (INSERT/UPDATE/DELETE) not allowed on demo graphs."
+    
+    # 2. Syntax validation with sqlglot
+    if not error_msg:
+        try:
+            # Map db_type to sqlglot dialects roughly
+            dialect_map = {"postgres": "postgres", "mysql": "mysql", "sqlite": "sqlite", "snowflake": "snowflake"}
+            dialect = dialect_map.get(state["db_type"], "postgres")
+            sqlglot.parse_one(sql, read=dialect)
+        except sqlglot.errors.ParseError as e:
+            error_msg = f"Syntax Error: {str(e)}"
+            
+    if error_msg:
+        events.append({"type": "reasoning_step", "final_response": False, "message": f"Phát hiện lỗi cú pháp: {error_msg}. Đang tự động sửa..."})
         return {
-            "sql_query": healing_result["sql_query"],
-            "query_results": healing_result["query_results"],
-            "execution_error": None,
-            "healing_attempts": state["healing_attempts"] + healing_result.get("attempts", 1),
+            "validation_error": error_msg,
+            "validation_attempts": state.get("validation_attempts", 0) + 1,
+            "is_destructive": is_destructive,
             "events_to_yield": events
         }
-
-
-
-def generate_chart(state: AgentState) -> dict:
-    if not state.get("query_results"):
-        return {}
         
-    try:
-        chart_agent = ChartAgent(custom_api_key=state["custom_api_key"], custom_model=state["custom_model"], custom_api_base=state["custom_api_base"])
-        chart_config = chart_agent.generate_chart_config(
-            user_query=state["queries_history"][-1],
-            sql_query=state["sql_query"],
-            query_results=state["query_results"]
-        )
-        if chart_config:
-            return {
-                "chart_config": chart_config,
-                "events_to_yield": [{
-                    "type": "chart_config",
-                    "data": chart_config,
-                    "final_response": False,
-                }]
-            }
-    except Exception as e:
-        logging.error(f"Chart generation error: {e}")
-    return {}
+    events.append({"type": "reasoning_step", "final_response": False, "message": "Bước 3: Thực thi truy vấn SQL hợp lệ..."})
+    return {
+        "validation_error": None,
+        "validation_attempts": state.get("validation_attempts", 0) + 1,
+        "is_destructive": is_destructive,
+        "events_to_yield": events
+    }
 
-def run_data_analyst(state: AgentState) -> dict:
-    events = [{"type": "reasoning_step", "final_response": False, "message": "Step 4: Analyzing data with Code Interpreter..."}]
+async def execute_sql(state: AgentState) -> dict:
+    events = []
+    try:
+        sql = state["sql_query"]
+        try:
+            dialect_map = {"postgres": "postgres", "mysql": "mysql", "sqlite": "sqlite", "snowflake": "snowflake"}
+            dialect = dialect_map.get(state["db_type"], "postgres")
+            parsed = sqlglot.parse_one(sql, read=dialect)
+            if isinstance(parsed, sqlglot.exp.Select) and not parsed.args.get("limit"):
+                parsed = parsed.limit(500)
+                sql = parsed.sql(dialect=dialect)
+                logger.info("Auto-appended LIMIT 500 to query")
+        except Exception as e:
+            logger.warning(f"Could not auto-append LIMIT: {e}")
+
+        # Run DB query in a separate thread to not block the async event loop
+        query_results = await asyncio.to_thread(
+            state["loader_class"].execute_sql_query, sql, state["db_url"]
+        )
+        
+        events.append({"type": "query_result", "data": query_results, "final_response": False})
+        return {"query_results": query_results, "execution_error": None, "events_to_yield": events, "sql_query": sql}
+    except Exception as e:
+        events.append({"type": "reasoning_step", "final_response": False, "message": f"Lỗi thực thi DB: {str(e)}"})
+        return {"execution_error": str(e), "events_to_yield": events}
+
+def generate_insight_and_chart(state: AgentState) -> dict:
+    events = [{"type": "reasoning_step", "final_response": False, "message": "Bước 4: Sinh Insight và Biểu đồ (Charting)..."}]
     
     if not state.get("query_results"):
         return {"events_to_yield": events}
         
     try:
-        analyst = DataAnalystAgent(
-            queries_history=state["queries_history"], 
-            result_history=state["result_history"],
-            custom_api_key=state.get("custom_api_key"), 
-            custom_model=state.get("custom_model"), 
-            custom_api_base=state.get("custom_api_base")
+        agent = InsightAndChartAgent(custom_api_key=state["custom_api_key"], custom_model=state["custom_model"], custom_api_base=state["custom_api_base"])
+        res = agent.generate(
+            user_query=state["queries_history"][-1],
+            sql_query=state["sql_query"],
+            query_results=state["query_results"],
+            schema_context=state["graph_context"]
         )
-        report = analyst.analyze_and_report(state["queries_history"][-1], state["query_results"])
         
+        insight = res.get("insight") if res else None
+        chart_config = res if res and res.get("should_visualize") else None
+        
+        if chart_config:
+            events.append({"type": "chart_config", "data": chart_config.get("option"), "chart_type": chart_config.get("chart_type"), "final_response": False})
+            
         return {
-            "final_answer": report,
+            "insight": insight,
+            "chart_config": chart_config,
             "events_to_yield": events
         }
     except Exception as e:
-        logging.error(f"DataAnalyst Error: {e}")
+        logging.error(f"Insight/Chart generation error: {e}")
         return {"events_to_yield": events}
 
 def format_response(state: AgentState) -> dict:
-    events = [{"type": "reasoning_step", "final_response": False, "message": "Step 5: Finalizing response..."}]
+    events = []
     
     if state.get("execution_error"):
-        user_readable_response = f"Error executing SQL query: {state['execution_error']}"
-        events.append({"type": "error", "final_response": True, "message": "Error executing SQL query"})
+        ans = f"Lỗi khi chạy SQL: {state['execution_error']}"
+        events.append({"type": "error", "final_response": True, "message": ans})
+    elif state.get("validation_error") and state.get("validation_attempts", 0) >= 3:
+        ans = f"Không thể sinh SQL hợp lệ sau nhiều lần thử. Lỗi cuối: {state['validation_error']}"
+        events.append({"type": "error", "final_response": True, "message": ans})
     else:
-        if state.get("final_answer"):
-            user_readable_response = state["final_answer"]
-        else:
-            results = state.get("query_results", [])
-            num_rows = len(results) if isinstance(results, list) else 0
-            if num_rows == 0:
-                user_readable_response = "Truy vấn thành công nhưng không tìm thấy dữ liệu nào phù hợp với câu hỏi của bạn."
-            else:
-                user_readable_response = f"Dưới đây là kết quả phân tích dữ liệu cho câu hỏi của bạn (tìm thấy {num_rows} bản ghi):"
-        events.append({"type": "ai_response", "final_response": True, "message": user_readable_response})
+        results = state.get("query_results", [])
+        num_rows = len(results) if isinstance(results, list) else 0
         
-    return {"final_answer": user_readable_response, "events_to_yield": events}
+        if num_rows == 0:
+            ans = "Truy vấn thành công nhưng không tìm thấy dữ liệu."
+        else:
+            ans = state.get("insight") or f"Đã tìm thấy {num_rows} bản ghi. (V4 Hybrid Architecture)"
+            
+        events.append({"type": "ai_response", "final_response": True, "message": ans})
+        
+    return {"final_answer": ans, "events_to_yield": events}
 
-
-def route_analysis(state: AgentState):
-    if not state.get("is_sql_translatable"):
-        return "follow_up"
+def route_validation(state: AgentState):
+    if state.get("validation_error"):
+        if state.get("validation_attempts", 0) >= 3:
+            return "format" # Give up after 3 retries
+        return "generate_sql" # Feedback loop
     return "execute"
 
 def route_execution(state: AgentState):
     if state.get("execution_error"):
-        return "heal"
-    return "chart"
+        return "format"
+    return "insight_chart"
 
-def route_healing(state: AgentState):
-    if state.get("execution_error") and state.get("healing_attempts", 0) >= 3:
-        return "format" # Give up
-    return "execute" # healed successfully or retrying
-
-# Build Graph
+# Build Graph V4
 builder = StateGraph(AgentState)
 builder.add_node("init", init_state)
 builder.add_node("retrieve", retrieve_schema)
-builder.add_node("analysis", analyze_query)
+builder.add_node("generate_sql", generate_sql)
+builder.add_node("validate_sql", validate_sql)
 builder.add_node("execute", execute_sql)
-builder.add_node("heal", heal_sql)
-builder.add_node("chart", generate_chart)
-builder.add_node("data_analyst", run_data_analyst)
+builder.add_node("insight_chart", generate_insight_and_chart)
 builder.add_node("format", format_response)
-builder.add_node("follow_up", generate_follow_up)
 
 builder.add_edge(START, "init")
 builder.add_edge("init", "retrieve")
-builder.add_edge("retrieve", "analysis")
-builder.add_conditional_edges("analysis", route_analysis, {"follow_up": "follow_up", "execute": "execute"})
-builder.add_conditional_edges("execute", route_execution, {"heal": "heal", "chart": "chart"})
-builder.add_conditional_edges("heal", route_healing, {"format": "format", "execute": "chart"})
-builder.add_edge("chart", "data_analyst")
-builder.add_edge("data_analyst", "format")
+builder.add_edge("retrieve", "generate_sql")
+builder.add_edge("generate_sql", "validate_sql")
+builder.add_conditional_edges("validate_sql", route_validation, {"generate_sql": "generate_sql", "format": "format", "execute": "execute"})
+builder.add_conditional_edges("execute", route_execution, {"format": "format", "insight_chart": "insight_chart"})
+builder.add_edge("insight_chart", "format")
 builder.add_edge("format", END)
-builder.add_edge("follow_up", END)
 
 graph = builder.compile()
 
 from api.core.ai_tracer import save_ai_trace
-import traceback
 
 def _make_json_safe(d: dict) -> dict:
     safe_d = {}
     for k, v in d.items():
-        if k in ["db", "loader_class", "memory_tool"]:
+        if k in ["db", "loader_class"]:
             safe_d[k] = str(type(v))
         elif isinstance(v, (dict, list, str, int, float, bool, type(None))):
             safe_d[k] = v
@@ -395,12 +371,10 @@ async def run_query_graph_v4(user_id: str, graph_id: str, chat_data: Any, db=Non
         async for event in graph.astream(initial_state, stream_mode="updates"):
             for node_name, state_updates in event.items():
                 if isinstance(state_updates, dict):
-                    # Log step state
                     graph_trace["steps"].append({
                         "node": node_name,
                         "updates": _make_json_safe(state_updates)
                     })
-                    
                     current_state.update(state_updates)
                     if "events_to_yield" in state_updates:
                         for y_event in state_updates["events_to_yield"]:
@@ -412,22 +386,21 @@ async def run_query_graph_v4(user_id: str, graph_id: str, chat_data: Any, db=Non
         })
         raise
     finally:
-        save_ai_trace("LangGraph_Execution", {"user_id": user_id, "graph_id": graph_id}, graph_trace)
+        save_ai_trace("LangGraph_Execution_V4", {"user_id": user_id, "graph_id": graph_id}, graph_trace)
     
-    # After graph finishes, we need to return the _Final result exactly like original pipeline
     final_state = current_state
     
     yield _Final(_build_query_result(
         sql_query=final_state.get("sql_query", ""),
         results=final_state.get("query_results", []),
-        ai_response=final_state.get("final_answer") or final_state.get("follow_up_message", ""),
-        confidence=0.0, # approximation
-        is_valid=final_state.get("is_sql_translatable", False),
+        ai_response=final_state.get("final_answer", ""),
+        confidence=1.0 if not final_state.get("execution_error") else 0.0,
+        is_valid=final_state.get("validation_error") is None,
         is_destructive=final_state.get("is_destructive", False),
         execution_time=time.perf_counter() - final_state.get("start_time", time.perf_counter()),
-        missing_information=final_state.get("missing_information", ""),
-        ambiguities=final_state.get("ambiguities", ""),
-        explanation=final_state.get("explanation", ""),
+        missing_information="",
+        ambiguities="",
+        explanation="",
         chart_config=final_state.get("chart_config"),
-        error_message=final_state.get("execution_error"),
+        error_message=final_state.get("execution_error") or final_state.get("validation_error"),
     ))

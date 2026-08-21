@@ -13,6 +13,8 @@ from pymysql.cursors import DictCursor
 
 from api.loaders.base_loader import BaseLoader
 from api.loaders.graph_loader import load_to_graph
+from api.core.db_pool import pool_manager
+
 
 
 class MySQLQueryError(Exception):
@@ -127,9 +129,11 @@ class MySQLLoader(BaseLoader):
         db=None,
     ) -> AsyncGenerator[tuple[bool, str], None]:
         try:
+            from api.core.pipeline import graph_name
             conn_params = MySQLLoader._parse_mysql_url(connection_url)
 
-            conn = pymysql.connect(**conn_params)
+            engine = pool_manager.get_engine(connection_url)
+            conn = engine.raw_connection()
             cursor = conn.cursor(DictCursor)
 
             db_name = conn_params['database']
@@ -145,7 +149,7 @@ class MySQLLoader(BaseLoader):
 
             # Load data into graph
             yield True, "Loading data into graph..."
-            await load_to_graph(f"{prefix}_{db_name}", entities, relationships,
+            await load_to_graph(graph_name(prefix, db_name), entities, relationships,
                          db_name=db_name, db_url=connection_url, db=db)
 
             yield True, (f"MySQL schema loaded successfully. "
@@ -380,7 +384,8 @@ class MySQLLoader(BaseLoader):
     
         try:
             conn_params = MySQLLoader._parse_mysql_url(db_url)
-            conn = pymysql.connect(**conn_params)
+            engine = pool_manager.get_engine(db_url)
+            conn = engine.raw_connection()
             cursor = conn.cursor(DictCursor)
 
             cursor.execute(sql_query)

@@ -17,7 +17,7 @@ if openai_api_base:
         os.environ["OLLAMA_API_BASE"] = openai_api_base
 
 # Đảm bảo có api_key placeholder cho các model OpenAI-compatible tự host (như vLLM) nếu chưa cấu hình key nào
-if (os.getenv("VLLM_MODEL") or os.getenv("OLLAMA_MODEL")) and not os.getenv("OPENAI_API_KEY"):
+if (os.getenv("VLLM_MODEL") or os.getenv("OLLAMA_MODEL") or os.getenv("EMBEDDING_API_BASE") or os.getenv("EMBEDDING_MODEL")) and not os.getenv("OPENAI_API_KEY"):
     os.environ["OPENAI_API_KEY"] = "none"
 
 vllm_api_key = os.getenv("VLLM_API_KEY") or os.getenv("OPENAI_API_KEY")
@@ -31,48 +31,135 @@ def configure_litellm_logging():
     
 configure_litellm_logging()
 
+def _extract_embedding_vec(data_item):
+    if isinstance(data_item, dict):
+        if "embedding" in data_item:
+            return data_item["embedding"]
+        elif "embeddings" in data_item:
+            return data_item["embeddings"]
+        keys = list(data_item.keys()) if hasattr(data_item, "keys") else []
+        if keys:
+            return data_item[keys[0]]
+    else:
+        if hasattr(data_item, "embedding"):
+            return data_item.embedding
+        elif hasattr(data_item, "embeddings"):
+            return data_item.embeddings
+    return None
+
 class EmbeddingsModel:
     def __init__(self, model_name:str, config:str=None):
         self.model_name = model_name
         self.config = config
         
     def embed(self, text: Union[str, list]) -> list:
+        import time
         api_base = os.getenv("EMBEDDING_API_BASE") or os.getenv("OPENAI_API_BASE")
-        embeddings = embedding(self.model_name, input=text, api_base=api_base)
-        result_embeddings = []
-        for data_item in embeddings.data:
-            if "embedding" in data_item:
-                result_embeddings.append(data_item["embedding"])
-            elif "embeddings" in data_item:
-                result_embeddings.append(data_item["embeddings"])
-            else:
-                # fallback to dict keys / index if keys differ
-                keys = list(data_item.keys()) if hasattr(data_item, "keys") else []
-                if keys:
-                    result_embeddings.append(data_item[keys[0]])
-        return result_embeddings
+        if not api_base and self.model_name.startswith("ollama/"):
+            api_base = os.getenv("OLLAMA_API_BASE")
+            
+        if self.model_name.startswith("gemini/") or self.model_name.startswith("anthropic/") or self.model_name.startswith("cohere/"):
+            api_base = None
+            
+        max_retries = 3
+        for attempt in range(max_retries):
+            api_key = get_dynamic_api_key(self.model_name)
+            if not api_key:
+                api_key = os.getenv("OPENAI_API_KEY") or "none"
+                
+            try:
+                embeddings = embedding(self.model_name, input=text, api_base=api_base, api_key=api_key)
+                result_embeddings = []
+                for data_item in embeddings.data:
+                    vec = _extract_embedding_vec(data_item)
+                    if vec is not None:
+                        result_embeddings.append(vec)
+                return result_embeddings
+            except Exception as e:
+                err_msg = str(e)
+                logging.error(f"Attempt {attempt+1}/{max_retries} failed for embedding model {self.model_name}: {err_msg}")
+                if attempt < max_retries - 1:
+                    import re
+                    # Check if API tells us how long to wait
+                    match = re.search(r'retry in ([\d\.]+)s', err_msg, re.IGNORECASE)
+                    if match:
+                        sleep_time = float(match.group(1)) + 1.0
+                        logging.info(f"Rate limit hit. Sleeping for {sleep_time:.2f} seconds based on API response...")
+                        time.sleep(sleep_time)
+                    else:
+                        time.sleep(15 * (attempt + 1))  # Fallback to 15s, 30s
+                else:
+                    logging.error(f"Final error during embedding for model {self.model_name}: {e}")
+                    return []
+        return []
     
     def get_vector_size(self):
         api_base = os.getenv("EMBEDDING_API_BASE") or os.getenv("OPENAI_API_BASE")
-        embed = embedding(model=self.model_name, input=["Hello World"], api_base=api_base)
-        # Handle dynamic response keys for getting vector size
-        first_data = embed.data[0]
-        if "embedding" in first_data:
-            return len(first_data["embedding"])
-        elif "embeddings" in first_data:
-            return len(first_data["embeddings"])
-        else:
-            keys = list(first_data.keys()) if hasattr(first_data, "keys") else []
-            if keys:
-                return len(first_data[keys[0]])
-            return 1536  # Default fallback size
+        if not api_base and self.model_name.startswith("ollama/"):
+            api_base = os.getenv("OLLAMA_API_BASE")
+            
+        if self.model_name.startswith("gemini/") or self.model_name.startswith("anthropic/") or self.model_name.startswith("cohere/"):
+            api_base = None
+            
+        api_key = get_dynamic_api_key(self.model_name)
+        if not api_key:
+            api_key = os.getenv("OPENAI_API_KEY") or "none"
+        
+        try:
+            embed = embedding(model=self.model_name, input=["Hello World"], api_base=api_base, api_key=api_key)
+            first_data = embed.data[0]
+            vec = _extract_embedding_vec(first_data)
+            if vec is not None:
+                return len(vec)
+            return 768  # Default fallback size
+        except Exception as e:
+            logging.error(f"Error getting vector size for model {self.model_name}: {e}. Defaulting to 768.")
+            return 768
     
+
+import random
+
+def get_dynamic_api_key(model: str) -> str | None:
+    if not model:
+        return None
+    if model.startswith("gemini/"):
+        keys = os.getenv("GEMINI_API_KEY", "")
+        if keys:
+            key_list = [k.strip() for k in keys.split(",") if k.strip()]
+            return random.choice(key_list) if key_list else None
+    elif model.startswith("openai/"):
+        keys = os.getenv("OPENAI_API_KEY", "")
+        if keys:
+            key_list = [k.strip() for k in keys.split(",") if k.strip()]
+            return random.choice(key_list) if key_list else None
+    elif model.startswith("openrouter/"):
+        keys = os.getenv("OPENROUTER_API_KEY", "")
+        if keys:
+            key_list = [k.strip() for k in keys.split(",") if k.strip()]
+            return random.choice(key_list) if key_list else None
+    return None
 
 def _with_prefix(model:str, provider:str):
     prefix = f"{provider}/"
     return prefix + model.removeprefix(prefix)
         
-SUPPORTED_VENDORS = ("openai", "anthropic", "gemini", "azure", "ollama","vllm", "cohere")
+SUPPORTED_VENDORS = ("openai", "anthropic", "gemini", "azure", "ollama","vllm", "cohere", "voyage", "huggingface", "openrouter")
+
+def _normalize_embedding_model_name(model_name: str) -> str:
+    if not model_name:
+        return model_name
+    for vendor in SUPPORTED_VENDORS:
+        if model_name.startswith(f"{vendor}/"):
+            return model_name
+    return f"openai/{model_name}"
+
+def _apply_provider_prefix(model: str, default_provider: str) -> str:
+    if not model:
+        return model
+    for vendor in SUPPORTED_VENDORS:
+        if model.startswith(f"{vendor}/"):
+            return model
+    return f"{default_provider}/{model}"
 
 @dataclasses.dataclass
 class Config:
@@ -82,32 +169,37 @@ class Config:
     if os.getenv("VLLM_MODEL"):
         LLM_PROVIDER = "vllm"
         AZURE_FLAG = False
-        COMPLETION_MODEL = _user_completion or _with_prefix(
-            os.getenv("VLLM_MODEL"), "custom_openai")
-        # VLLM sử dụng API OpenAI-compatible cho embedding, LiteLLM yêu cầu prefix 'openai'
-        EMBEDDING_MODEL_NAME = _user_embedding or _with_prefix(
-            os.getenv("VLLM_EMBEDDING_MODEL", "nomic-embed-text"), "openai")
+        COMPLETION_MODEL = _apply_provider_prefix(
+            _user_completion or os.getenv("VLLM_MODEL"), "custom_openai")
+        _emb = _user_embedding or os.getenv("VLLM_EMBEDDING_MODEL", "nomic-embed-text")
+        EMBEDDING_MODEL_NAME = _apply_provider_prefix(_emb, "openai")
     elif os.getenv("OLLAMA_MODEL"):
         LLM_PROVIDER = "ollama"
         AZURE_FLAG = False
-        COMPLETION_MODEL = _user_completion or _with_prefix(
-            os.getenv("OLLAMA_MODEL"), "custom_openai")
-        EMBEDDING_MODEL_NAME = _user_embedding or _with_prefix(
-            os.getenv("OLLAMA_EMBEDDING_MODEL", "nomic-embed-text"), "openai")
+        COMPLETION_MODEL = _apply_provider_prefix(
+            _user_completion or os.getenv("OLLAMA_MODEL"), "custom_openai")
+        EMBEDDING_MODEL_NAME = _apply_provider_prefix(
+            _user_embedding or os.getenv("OLLAMA_EMBEDDING_MODEL", "nomic-embed-text"), "openai")
+    elif os.getenv("OPENROUTER_API_KEY"):
+        LLM_PROVIDER = "openrouter"
+        AZURE_FLAG = False
+        COMPLETION_MODEL = _apply_provider_prefix(
+            _user_completion or os.getenv("OPENROUTER_MODEL") or "google/gemini-1.5-pro", "openrouter")
+        EMBEDDING_MODEL_NAME = _apply_provider_prefix(_user_embedding or "text-embedding-ada-002", "openai")
     elif os.getenv("OPENAI_API_KEY"):
         LLM_PROVIDER = "openai"
         AZURE_FLAG = False
-        COMPLETION_MODEL = _user_completion or "openai/gpt-4.1"
-        EMBEDDING_MODEL_NAME = _user_embedding or "openai/text-embedding-ada-002"
+        COMPLETION_MODEL = _apply_provider_prefix(_user_completion or "gpt-4.1", "openai")
+        EMBEDDING_MODEL_NAME = _apply_provider_prefix(_user_embedding or "text-embedding-ada-002", "openai")
     elif os.getenv("GEMINI_API_KEY"):
         LLM_PROVIDER = "gemini"
         AZURE_FLAG = False
-        COMPLETION_MODEL = _user_completion or "gemini/gemini-3-pro-preview"
-        EMBEDDING_MODEL_NAME = _user_embedding or "gemini/gemini-embedding-001"
+        COMPLETION_MODEL = _apply_provider_prefix(_user_completion or "gemini-3-pro-preview", "gemini")
+        EMBEDDING_MODEL_NAME = _apply_provider_prefix(_user_embedding or "gemini-embedding-001", "gemini")
     elif os.getenv("ANTHROPIC_API_KEY"):
         LLM_PROVIDER = "anthropic"
         AZURE_FLAG = False
-        COMPLETION_MODEL = _user_completion or "anthropic/claude-sonnet-4-5-20250929"
+        COMPLETION_MODEL = _apply_provider_prefix(_user_completion or "claude-sonnet-4-5-20250929", "anthropic")
         if _user_embedding:
             EMBEDDING_MODEL_NAME = _user_embedding
         elif os.getenv("VOYAGE_API_KEY"):
@@ -120,20 +212,23 @@ class Config:
     elif os.getenv("COHERE_API_KEY"):
         LLM_PROVIDER = "cohere"
         AZURE_FLAG = False
-        COMPLETION_MODEL = _user_completion or _with_prefix(
-            os.getenv("COHERE_MODEL", "command-a-03-2025"), "cohere")
-        EMBEDDING_MODEL_NAME = _user_embedding or _with_prefix(
-            os.getenv("COHERE_EMBEDDING_MODEL", "embed-v4.0"), "cohere")
+        COMPLETION_MODEL = _apply_provider_prefix(
+            _user_completion or os.getenv("COHERE_MODEL", "command-a-03-2025"), "cohere")
+        EMBEDDING_MODEL_NAME = _apply_provider_prefix(
+            _user_embedding or os.getenv("COHERE_EMBEDDING_MODEL", "embed-v4.0"), "cohere")
     else:
         # Default to Azure
         LLM_PROVIDER = "azure"
         AZURE_FLAG = True
-        COMPLETION_MODEL = _user_completion or "azure/gpt-4.1"
-        EMBEDDING_MODEL_NAME = _user_embedding or "azure/text-embedding-ada-002"
+        COMPLETION_MODEL = _apply_provider_prefix(_user_completion or "gpt-4.1", "azure")
+        EMBEDDING_MODEL_NAME = _apply_provider_prefix(_user_embedding or "text-embedding-ada-002", "azure")
+
+    EMBEDDING_MODEL_NAME = _normalize_embedding_model_name(EMBEDDING_MODEL_NAME)
 
     DB_MAX_DISTINCT: int = 100  
     DB_UNIQUENESS_THRESHOLD: float = 0.5  
     SHORT_MEMORY_LENGTH = 5 
+    USE_LLM_FOR_SCHEMA_DESC: bool = os.getenv("USE_LLM_FOR_SCHEMA_DESC", "True").lower() in ("true", "1", "t")
 
     EMBEDDING_MODEL = EmbeddingsModel(model_name=EMBEDDING_MODEL_NAME)
 
