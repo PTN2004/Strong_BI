@@ -39,5 +39,5 @@ build-backend = "hatchling.build"
 [tool.hatch.metadata]
 allow-direct-references = true
 
-[tool.hatch.build.target.wheel]
-package = ["strongbi", "api"]
+[tool.hatch.build.targets.wheel]
+packages = ["api"]

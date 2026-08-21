@@ -74,16 +74,26 @@ if [ -d "db-seed" ] && [ ! -f ".db_seeded" ]; then
         docker restart strongbi-falkordb >/dev/null
     fi
     
-    if [ -f "db-seed/neo4j.dump" ]; then
-        echo "Nạp dữ liệu Neo4j (Graph Database)..."
-        docker cp db-seed/neo4j.dump strongbi-neo4j:/var/lib/neo4j/import/neo4j.dump || echo "⚠️ Lỗi khi nạp Neo4j"
-        
-        # Dừng database neo4j
-        docker exec strongbi-neo4j cypher-shell -u neo4j -p password123 -d system "STOP DATABASE neo4j;" >/dev/null 2>&1 || true
-        # Nạp dữ liệu từ dump (chấp nhận đè data cũ)
-        docker exec strongbi-neo4j neo4j-admin database load neo4j --from-path=/var/lib/neo4j/import --overwrite-destination=true
-        # Mở lại database
-        docker exec strongbi-neo4j cypher-shell -u neo4j -p password123 -d system "START DATABASE neo4j;" >/dev/null 2>&1 || true
+    # Nạp toàn bộ dữ liệu Neo4j (Tất cả Databases)
+    if ls db-seed/*.dump 1> /dev/null 2>&1; then
+        echo "Nạp dữ liệu Neo4j (Graph Databases)..."
+        for DUMP_FILE in db-seed/*.dump; do
+            DB_NAME=$(basename "$DUMP_FILE" .dump)
+            echo "-> Đang nạp database: $DB_NAME"
+            
+            # Copy file dump vào thư mục import
+            docker cp "$DUMP_FILE" strongbi-neo4j:/var/lib/neo4j/import/"$DB_NAME.dump" || echo "⚠️ Lỗi khi copy $DB_NAME"
+            
+            # Tạo database nếu chưa có (Neo4j sẽ tự động tạo cấu trúc khi load nếu db chưa tồn tại)
+            # Dừng database
+            docker exec strongbi-neo4j cypher-shell -u neo4j -p password123 -d system "STOP DATABASE \`$DB_NAME\`;" >/dev/null 2>&1 || true
+            # Nạp dữ liệu từ dump (chấp nhận đè data cũ)
+            docker exec strongbi-neo4j neo4j-admin database load $DB_NAME --from-path=/var/lib/neo4j/import --overwrite-destination=true >/dev/null 2>&1 || echo "⚠️ Lỗi khi load $DB_NAME"
+            # Tạo mới database trên system (nếu đây là database mới hoàn toàn chưa từng được khai báo)
+            docker exec strongbi-neo4j cypher-shell -u neo4j -p password123 -d system "CREATE DATABASE \`$DB_NAME\` IF NOT EXISTS;" >/dev/null 2>&1 || true
+            # Mở lại database
+            docker exec strongbi-neo4j cypher-shell -u neo4j -p password123 -d system "START DATABASE \`$DB_NAME\`;" >/dev/null 2>&1 || true
+        done
     fi
     
     # Đánh dấu đã seed để không seed lại vào lần sau
@@ -123,7 +133,8 @@ trap cleanup SIGINT SIGTERM EXIT
 (
     echo -e "${GREEN}⚛️  Đang cài đặt và khởi động React Frontend...${NC}"
     cd app
-    npm install --silent
+    # Cài đặt (bỏ --silent để dễ xem lỗi, dùng --no-fund --no-audit để bớt rác)
+    npm install --no-fund --no-audit
     echo -e "${GREEN}⚛️  Frontend chuẩn bị chạy (Port mặc định: 5173)...${NC}"
     npm run dev
 ) &
