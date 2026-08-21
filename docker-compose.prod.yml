@@ -11,10 +11,10 @@ services:
     container_name: strongbi-api-prod
     restart: always
     ports:
-      - "5000:5000"
+      - "8000:8000"
     environment:
-      - HOST=0.0.0.0
-      - PORT=5000
+      - NODE_ENV=production
+      - PORT=8000
       - FASTAPI_DEBUG=False
       - FALKORDB_URL=redis://falkordb:6379/0
       # Dưới đây là các biến môi trường cấu hình động qua file .env ngoài thực tế

@@ -20,12 +20,12 @@ Chỉ với 1 lệnh duy nhất ở thư mục gốc của dự án:
 2. **Khởi Tạo CSDL**: Kích hoạt Docker Compose để dựng Postgres, Neo4j và FalkorDB.
 3. **Nạp Dữ Liệu (Seed Data)**: Tự động khôi phục (restore) toàn bộ dữ liệu cấu trúc Schema (từ thư mục `db-seed/` chứa các file `.dump` và `.sql`) vào Neo4j và Postgres. Dữ liệu của dự án sẽ có sẵn để sếp trải nghiệm ngay.
 4. **Cài Đặt Backend & Frontend**: Tự động tạo môi trường ảo Python (virtual environment), cài đặt các gói cần thiết bằng `uv`, cài đặt gói npm cho thư mục `app/`.
-5. **Chạy Server**: Khởi chạy API Backend ở cổng **5000** và React Frontend ở cổng **5173**.
+5. **Chạy Server**: Khởi chạy API Backend ở cổng **8000** và React Frontend ở cổng **5173**.
 
 ## 3. Truy Cập Hệ Thống
 Sau khi lệnh trên chạy xong, sếp mở trình duyệt và truy cập vào:
 - **Giao diện chính (Frontend)**: [http://localhost:5173](http://localhost:5173)
-- **Backend API Docs**: [http://localhost:5000/docs](http://localhost:5000/docs)
+- **Backend API Docs**: [http://localhost:8000/docs](http://localhost:8000/docs)
 
 *(Nhấn `Ctrl+C` ở màn hình Terminal đang chạy script để dừng toàn bộ hệ thống).*
 

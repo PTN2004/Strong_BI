@@ -1,7 +1,7 @@
 // API Configuration
 export const API_CONFIG = {
   // Base URL for the QueryWeaver backend API
-  // When served from backend (port 5000): use empty string (same origin)
+  // When served from backend (port 8000): use empty string (same origin)
   // When using Vite dev server (port 8080): use /api prefix for proxy
   // For production: use environment variable or empty string
   BASE_URL: import.meta.env.VITE_API_URL || (

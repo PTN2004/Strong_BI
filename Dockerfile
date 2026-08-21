@@ -38,6 +38,6 @@ COPY . .
 
 RUN mkdir -p /tmp/jinja_cache && chmod 777 /tmp/jinja_cache
 
-EXPOSE 5000
+EXPOSE 8000
 
-CMD ["uvicorn", "api.index:app", "--host", "0.0.0.0", "--port", "5000", "--workers", "4", "--log-level", "warning"]
+CMD ["uvicorn", "api.index:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4", "--log-level", "warning"]

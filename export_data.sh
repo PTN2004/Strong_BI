@@ -19,18 +19,24 @@ echo "Đang export FalkorDB (nếu có dùng)..."
 docker exec strongbi-falkordb redis-cli SAVE >/dev/null 2>&1 || echo "⚠️ Bỏ qua FalkorDB (không hoạt động hoặc không dùng)"
 docker cp strongbi-falkordb:/data/dump.rdb db-seed/dump.rdb >/dev/null 2>&1 || true
 
-# 3. Trích xuất Neo4j
-echo "Đang export Neo4j (Graph Database chính)..."
-# Cần dùng cypher-shell kết nối vào system để dừng tạm database (phiên bản Neo4j 5 enterprise cho phép)
-docker exec strongbi-neo4j cypher-shell -u neo4j -p password123 -d system "STOP DATABASE neo4j;" >/dev/null 2>&1 || echo "⚠️ Có thể neo4j đã dừng"
-# Xoá file dump cũ bên trong container nếu có
-docker exec strongbi-neo4j rm -f /var/lib/neo4j/import/neo4j.dump
-# Chạy lệnh dump ra thư mục import bên trong container
-docker exec strongbi-neo4j neo4j-admin database dump neo4j --to-path=/var/lib/neo4j/import
-# Copy file ra thư mục db-seed
-docker cp strongbi-neo4j:/var/lib/neo4j/import/neo4j.dump db-seed/neo4j.dump || echo "⚠️ Không thể copy neo4j.dump"
-# Mở lại database
-docker exec strongbi-neo4j cypher-shell -u neo4j -p password123 -d system "START DATABASE neo4j;" >/dev/null 2>&1 || true
+# 3. Trích xuất Neo4j (TẤT CẢ Databases: dms, neo4j, strongbi-demo,...)
+echo "Đang export toàn bộ Neo4j (Graph Databases)..."
+# Lấy danh sách tất cả các databases (ngoại trừ system)
+DATABASES=$(docker exec strongbi-neo4j cypher-shell -u neo4j -p password123 -d system "SHOW DATABASES YIELD name WHERE name <> 'system' RETURN name;" | tail -n +2 | tr -d '"')
+
+for db in $DATABASES; do
+    echo "-> Đang xử lý database: $db"
+    # Dừng tạm database
+    docker exec strongbi-neo4j cypher-shell -u neo4j -p password123 -d system "STOP DATABASE \`$db\`;" >/dev/null 2>&1 || true
+    # Xoá file dump cũ nếu có
+    docker exec strongbi-neo4j rm -f /var/lib/neo4j/import/$db.dump
+    # Export (Dump)
+    docker exec strongbi-neo4j neo4j-admin database dump $db --to-path=/var/lib/neo4j/import >/dev/null 2>&1 || echo "⚠️ Lỗi khi dump $db"
+    # Copy ra ngoài
+    docker cp strongbi-neo4j:/var/lib/neo4j/import/$db.dump db-seed/$db.dump || echo "⚠️ Không thể copy $db.dump"
+    # Khởi động lại database
+    docker exec strongbi-neo4j cypher-shell -u neo4j -p password123 -d system "START DATABASE \`$db\`;" >/dev/null 2>&1 || true
+done
 
 echo -e "${GREEN}✅ Đã xuất dữ liệu thành công ra thư mục 'db-seed/'!${NC}"
 echo "👉 Bạn hãy commit thư mục 'db-seed/' này lên Github."

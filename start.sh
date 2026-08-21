@@ -115,9 +115,9 @@ trap cleanup SIGINT SIGTERM EXIT
 
 # Chạy Backend (Python/FastAPI)
 (
-    echo -e "${GREEN}🐍 Đang khởi động Python Backend (Port 5000)...${NC}"
+    echo -e "${GREEN}🐍 Đang khởi động Python Backend (Port 8000)...${NC}"
     if command -v uv &>/dev/null; then
-        uv run uvicorn api.index:app --host 0.0.0.0 --port 5000 --reload
+        uv run uvicorn api.index:app --host 0.0.0.0 --port 8000 --reload
     else
         echo -e "${YELLOW}⚠️ Không tìm thấy uv. Đang dùng pip mặc định...${NC}"
         if [ ! -d ".venv" ]; then
@@ -125,7 +125,7 @@ trap cleanup SIGINT SIGTERM EXIT
         fi
         source .venv/bin/activate
         pip install -r <(python3 -c "import tomli; print('\n'.join(tomli.load(open('pyproject.toml', 'rb'))['project']['dependencies']))" 2>/dev/null || echo "fastapi uvicorn") || echo "Có thể thiếu một số package."
-        uvicorn api.index:app --host 0.0.0.0 --port 5000 --reload
+        uvicorn api.index:app --host 0.0.0.0 --port 8000 --reload
     fi
 ) &
 
@@ -140,7 +140,7 @@ trap cleanup SIGINT SIGTERM EXIT
 ) &
 
 echo -e "\n${GREEN}🎉 Hệ thống Strong BI đang chạy!${NC}"
-echo -e "👉 Backend API:  http://localhost:5000"
+echo -e "👉 Backend API:  http://localhost:8000"
 echo -e "👉 Frontend UI:  Vui lòng xem cổng Vite ở log bên dưới (thường là http://localhost:5173)\n"
 echo -e "${YELLOW}Nhấn Ctrl+C để dừng tất cả dịch vụ.${NC}\n"
 

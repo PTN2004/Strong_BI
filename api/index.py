@@ -14,7 +14,7 @@ def main() -> None:
     uvicorn.run(
         "api.index:app",
         host=os.environ.get("HOST", "127.0.0.1"),
-        port=int(os.environ.get("PORT", "5000")),
+        port=int(os.environ.get("PORT", "8000")),
         reload=debug_mode,
         log_level="info" if debug_mode else "warning",
     )
