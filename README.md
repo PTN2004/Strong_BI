@@ -18,7 +18,7 @@
 
 <!-- DEMO_PLACEHOLDER_START -->
 <div align="center">
-  <img src="./docs/Screen Recording 2026-09-16 at 13.57.30.mov" alt="StrongBI Demo" width="100%" style="border-radius: 8px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);" />
+  <img src="./docs/demo.gif" alt="StrongBI Demo" width="100%" style="border-radius: 8px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);" />
 </div>
 <!-- DEMO_PLACEHOLDER_END -->
 
