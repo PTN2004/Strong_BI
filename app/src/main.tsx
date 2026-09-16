@@ -1,6 +1,10 @@
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
+import { apiFetch } from "./utils/apiFetch";
+
+// Override global fetch
+window.fetch = apiFetch;
 
 // Initialize theme on page load
 try {

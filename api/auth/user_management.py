@@ -15,7 +15,7 @@ from typing import Optional, Dict, Any, Callable
 from fastapi import Request, HTTPException, status
 from sqlalchemy.orm import Session
 
-from api.auth.models import User, UserToken, UserRole
+from api.auth.models import User, UserToken, UserRole, Workspace, WorkspaceUser, WorkspaceRole
 
 logger = logging.getLogger(__name__)
 
@@ -96,6 +96,22 @@ def register_user(
     )
     db.add(new_user)
     db.flush()  # flush để lấy id trước khi commit
+
+    # Tạo Workspace mặc định cho user
+    safe_name = first_name.strip() if first_name else email.split("@")[0]
+    default_ws = Workspace(
+        name=f"{safe_name}'s Workspace",
+        slug=f"{safe_name.lower().replace(' ', '-')}-{secrets.token_hex(4)}"
+    )
+    db.add(default_ws)
+    db.flush()
+    
+    ws_user = WorkspaceUser(
+        workspace_id=default_ws.id,
+        user_id=new_user.id,
+        role=WorkspaceRole.OWNER
+    )
+    db.add(ws_user)
 
     # Tạo token đăng nhập ngay sau khi đăng ký
     token = _create_token(db, new_user.id)
@@ -290,6 +306,78 @@ def roles_allowed(*roles: UserRole) -> Callable:
             return await func(*args, **kwargs)
         return wrapper
     return decorator
+
+def require_workspace(func: Callable) -> Callable:
+    """
+    Decorator kiểm tra quyền truy cập Workspace của người dùng.
+    Yêu cầu request phải có request.state.user_id được inject từ @token_required.
+    Tự động fallback về workspace chính của user nếu header X-Workspace-Id không được gửi lên.
+    """
+    @wraps(func)
+    async def wrapper(*args, **kwargs):
+        request: Optional[Request] = kwargs.get("request")
+        if request is None:
+            for arg in args:
+                if isinstance(arg, Request):
+                    request = arg
+                    break
+                    
+        if request is None or not hasattr(request.state, "user_id"):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authentication required before workspace check",
+            )
+            
+        workspace_id = request.headers.get("X-Workspace-Id")
+        from api.database import get_session_factory
+        db = get_session_factory()()
+        try:
+            ws_user = None
+            if workspace_id:
+                ws_user = db.query(WorkspaceUser).filter(
+                    WorkspaceUser.workspace_id == workspace_id,
+                    WorkspaceUser.user_id == request.state.user_id
+                ).first()
+            
+            # Fallback: if no workspace_id provided or not found, find any workspace the user belongs to
+            if not ws_user:
+                ws_user = db.query(WorkspaceUser).filter(
+                    WorkspaceUser.user_id == request.state.user_id
+                ).first()
+                
+            # If user has no workspace at all, auto-provision one for backward compatibility
+            if not ws_user:
+                user_id_str = str(request.state.user_id)
+                user = db.query(User).filter(User.id == request.state.user_id).first()
+                safe_name = user.first_name if user and user.first_name else "My"
+                
+                # Check if workspace with user_id exists
+                ws = db.query(Workspace).filter(Workspace.id == request.state.user_id).first()
+                if not ws:
+                    ws = Workspace(
+                        id=request.state.user_id,
+                        name=f"{safe_name}'s Workspace",
+                        slug=f"ws-{user_id_str[:8]}"
+                    )
+                    db.add(ws)
+                    db.flush()
+                
+                ws_user = WorkspaceUser(
+                    workspace_id=ws.id,
+                    user_id=request.state.user_id,
+                    role=WorkspaceRole.OWNER
+                )
+                db.add(ws_user)
+                db.commit()
+                db.refresh(ws_user)
+                
+            request.state.workspace_id = str(ws_user.workspace_id)
+            request.state.workspace_role = ws_user.role.value
+        finally:
+            db.close()
+            
+        return await func(*args, **kwargs)
+    return wrapper
 
 
 # ─────────────────────────────────────────────────────────────────────

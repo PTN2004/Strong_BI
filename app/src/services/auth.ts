@@ -104,7 +104,7 @@ export class AuthService {
       let errorMsg = 'Login failed';
       try {
         const data = await response.json();
-        errorMsg = data.detail || errorMsg;
+        errorMsg = data.detail || data.error || errorMsg;
       } catch (e) {}
       throw new Error(errorMsg);
     }
@@ -128,7 +128,7 @@ export class AuthService {
       let errorMsg = 'Registration failed';
       try {
         const data = await response.json();
-        errorMsg = data.detail || errorMsg;
+        errorMsg = data.detail || data.error || errorMsg;
       } catch (e) {}
       throw new Error(errorMsg);
     }

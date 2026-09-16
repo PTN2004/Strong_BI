@@ -37,6 +37,12 @@ interface ChatMessageData {
     message: string;
     chatHistory: string[];
   };
+  metrics?: {
+    total_tokens: number;
+    cost_usd: number;
+    api_calls_count: number;
+    engine_version: string;
+  };
   timestamp: Date;
 }
 
@@ -112,7 +118,7 @@ const ChatInterface = ({
     }
   }, [initialQuery, selectedGraph]);
 
-  const handleSendMessage = async (query: string) => {
+  const handleSendMessage = async (query: string, version?: string) => {
     if (isProcessing || disabled) return; // Prevent multiple submissions or when disabled by parent
 
     if (!selectedGraph) {
@@ -163,10 +169,18 @@ const ChatInterface = ({
         explanation?: string;
         isValid?: boolean;
       } = {};
+      let metrics: {
+        total_tokens: number;
+        cost_usd: number;
+        api_calls_count: number;
+        engine_version: string;
+      } | undefined = undefined;
+      
       // Stream the query
       for await (const message of ChatService.streamQuery({
         query,
         database: selectedGraph.id,
+        version: version || 'v4',
         history: historySnapshot,
         customApiKey: isApiKeyValid ? apiKey : undefined,
         customModel: isApiKeyValid ? modelName : undefined,
@@ -221,6 +235,16 @@ const ChatInterface = ({
           // AI-generated response - this is what we show to the user
           const responseContent = (message.message || message.content || '').trim();
           finalContent = responseContent;
+        } else if (message.type === 'metrics') {
+          // Save metrics for the final AI response
+          if (message.data) {
+            metrics = {
+              total_tokens: message.data.total_tokens || 0,
+              cost_usd: message.data.cost_usd || 0,
+              api_calls_count: message.data.api_calls_count || 0,
+              engine_version: message.data.engine_version || 'v4'
+            };
+          }
         } else if (message.type === 'followup_questions') {
           // Follow-up questions when query is unclear or off-topic
           const followupContent = (message.message || message.content || '').trim();
@@ -302,6 +326,7 @@ const ChatInterface = ({
           id: (Date.now() + 5).toString(),
           type: "ai",
           content: finalContent,
+          metrics: metrics,
           timestamp: new Date(),
         };
         

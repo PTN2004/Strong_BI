@@ -62,6 +62,11 @@ class AgentState(TypedDict):
     chart_config: dict | None
     final_answer: str | None
     events_to_yield: list[dict]
+    
+    # Token Tracking
+    total_prompt_tokens: int
+    total_completion_tokens: int
+    api_calls_count: int
 
 async def init_state(state: AgentState) -> dict:
     start_time = time.perf_counter()
@@ -96,6 +101,9 @@ async def init_state(state: AgentState) -> dict:
         "validation_attempts": 0,
         "healing_attempts": 0,
         "logic_validation_attempts": 0,
+        "total_prompt_tokens": 0,
+        "total_completion_tokens": 0,
+        "api_calls_count": 0,
         "events_to_yield": [{
             "type": "reasoning_step",
             "final_response": False,
@@ -171,12 +179,14 @@ Please generate the corresponding {state['db_type']} SQL query:"""
         {"role": "user", "content": user_prompt}
     ]
     
-    sql = run_completion(
+    sql, usage = run_completion(
         messages=messages,
         custom_model=state["custom_model"],
         custom_api_key=state["custom_api_key"],
-        temperature=0.0
-    ).strip()
+        temperature=0.0,
+        return_usage=True
+    )
+    sql = sql.strip()
     
     # Cleanup formatting if LLM still returned markdown
     if sql.startswith("```sql"):
@@ -194,7 +204,10 @@ Please generate the corresponding {state['db_type']} SQL query:"""
             "type": "sql_query",
             "data": sql,
             "final_response": False,
-        }]
+        }],
+        "total_prompt_tokens": state.get("total_prompt_tokens", 0) + usage.get("prompt_tokens", 0),
+        "total_completion_tokens": state.get("total_completion_tokens", 0) + usage.get("completion_tokens", 0),
+        "api_calls_count": state.get("api_calls_count", 0) + 1
     }
 
 def validate_sql(state: AgentState) -> dict:
@@ -282,10 +295,15 @@ def generate_insight_and_chart(state: AgentState) -> dict:
         if chart_config:
             events.append({"type": "chart_config", "data": chart_config.get("option"), "chart_type": chart_config.get("chart_type"), "final_response": False})
             
+        usage = res.get("usage", {}) if res else {}
+            
         return {
             "insight": insight,
             "chart_config": chart_config,
-            "events_to_yield": events
+            "events_to_yield": events,
+            "total_prompt_tokens": state.get("total_prompt_tokens", 0) + usage.get("prompt_tokens", 0),
+            "total_completion_tokens": state.get("total_completion_tokens", 0) + usage.get("completion_tokens", 0),
+            "api_calls_count": state.get("api_calls_count", 0) + 1
         }
     except Exception as e:
         logging.error(f"Insight/Chart generation error: {e}")
@@ -295,7 +313,7 @@ def heal_sql(state: AgentState) -> dict:
     events = [{"type": "reasoning_step", "final_response": False, "message": f"Cố gắng sửa lỗi DB (Lần {state.get('healing_attempts', 0) + 1})..."}]
     agent = HealerAgent(custom_api_key=state["custom_api_key"], custom_model=state["custom_model"], custom_api_base=state["custom_api_base"])
     
-    fixed_sql = agent.heal(
+    fixed_sql, usage = agent.heal(
         user_question=state["queries_history"][-1],
         broken_sql=state["sql_query"],
         error_message=state["execution_error"],
@@ -308,12 +326,18 @@ def heal_sql(state: AgentState) -> dict:
             "sql_query": fixed_sql,
             "healing_attempts": state.get("healing_attempts", 0) + 1,
             "execution_error": None, # clear error for next execute
-            "events_to_yield": events
+            "events_to_yield": events,
+            "total_prompt_tokens": state.get("total_prompt_tokens", 0) + usage.get("prompt_tokens", 0),
+            "total_completion_tokens": state.get("total_completion_tokens", 0) + usage.get("completion_tokens", 0),
+            "api_calls_count": state.get("api_calls_count", 0) + 1
         }
     else:
         return {
             "healing_attempts": state.get("healing_attempts", 0) + 1,
-            "events_to_yield": events
+            "events_to_yield": events,
+            "total_prompt_tokens": state.get("total_prompt_tokens", 0) + usage.get("prompt_tokens", 0),
+            "total_completion_tokens": state.get("total_completion_tokens", 0) + usage.get("completion_tokens", 0),
+            "api_calls_count": state.get("api_calls_count", 0) + 1
         }
 
 def evaluate_logic(state: AgentState) -> dict:
@@ -332,19 +356,26 @@ def evaluate_logic(state: AgentState) -> dict:
         query_results=state.get("query_results", [])
     )
     
+    usage = res.get("usage", {}) if res else {}
     if res and res.get("status") == "Invalid":
         feedback = res.get("feedback", res.get("reason", "Lỗi logic không xác định."))
         events.append({"type": "reasoning_step", "final_response": False, "message": f"Phát hiện lỗi Logic: {feedback}"})
         return {
             "validation_error": feedback,
             "logic_validation_attempts": state.get("logic_validation_attempts", 0) + 1,
-            "events_to_yield": events
+            "events_to_yield": events,
+            "total_prompt_tokens": state.get("total_prompt_tokens", 0) + usage.get("prompt_tokens", 0),
+            "total_completion_tokens": state.get("total_completion_tokens", 0) + usage.get("completion_tokens", 0),
+            "api_calls_count": state.get("api_calls_count", 0) + 1
         }
     
     events.append({"type": "reasoning_step", "final_response": False, "message": "Kết quả hợp lệ về mặt ngữ nghĩa."})
     return {
         "validation_error": None,
-        "events_to_yield": events
+        "events_to_yield": events,
+        "total_prompt_tokens": state.get("total_prompt_tokens", 0) + usage.get("prompt_tokens", 0),
+        "total_completion_tokens": state.get("total_completion_tokens", 0) + usage.get("completion_tokens", 0),
+        "api_calls_count": state.get("api_calls_count", 0) + 1
     }
 
 def format_response(state: AgentState) -> dict:
@@ -363,9 +394,30 @@ def format_response(state: AgentState) -> dict:
         if num_rows == 0:
             ans = "Truy vấn thành công nhưng không tìm thấy dữ liệu."
         else:
-            ans = state.get("insight") or f"Đã tìm thấy {num_rows} bản ghi. (V4 Hybrid Architecture)"
+            ans = state.get("insight") or f"Đã tìm thấy {num_rows} bản ghi. (V5 Deep Analysis)"
             
         events.append({"type": "ai_response", "final_response": True, "message": ans})
+        
+    # Yield metrics event
+    total_prompt = state.get("total_prompt_tokens", 0)
+    total_comp = state.get("total_completion_tokens", 0)
+    api_calls = state.get("api_calls_count", 0)
+    
+    from api.pricing.pricing import calculate_cost
+    model_name = state.get("custom_model")
+    cost_usd = calculate_cost(model_name, total_prompt, total_comp) if model_name else 0.0
+    
+    events.append({
+        "type": "metrics",
+        "data": {
+            "prompt_tokens": total_prompt,
+            "completion_tokens": total_comp,
+            "total_tokens": total_prompt + total_comp,
+            "cost_usd": cost_usd,
+            "api_calls_count": api_calls
+        },
+        "final_response": False
+    })
         
     return {"final_answer": ans, "events_to_yield": events}
 

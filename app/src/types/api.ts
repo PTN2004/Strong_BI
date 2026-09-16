@@ -1,12 +1,34 @@
 // API Types and Interfaces
 
 // User types
+// UI permissions per-account — server resolve (cấu hình riêng hoặc default theo role)
+export interface UiPermissions {
+  menu: string[];        // "home" | "workspace" | "dashboard" | "databases" | "settings"
+  result_tabs: string[]; // "chart" | "data" | "graph" | "sql" (answer luôn hiển thị)
+}
+
+export interface Workspace {
+  id: string;
+  name: string;
+  slug: string;
+  role: string;
+  industry?: string;
+  business_goals?: string;
+  kpi_focus?: string;
+}
+
 export interface User {
   id: string;
   email: string;
   name?: string;
   picture?: string;
   provider?: 'google' | 'github';
+  role?: string;
+  firstName?: string;
+  lastName?: string;
+  ui_permissions?: UiPermissions;
+  features?: { suggestions?: boolean };
+  workspaces?: Workspace[];
 }
 
 // Authentication types
@@ -36,10 +58,13 @@ export interface GraphUploadResponse {
 export interface ChatRequest {
   query: string;
   database: string;
+  threadId?: string;    // deep-link /conversations/<id> khớp log server-side
+  version?: string;
+  customApiBase?: string;
   history?: ConversationMessage[];
   customApiKey?: string;
   customModel?: string;
-  customVendor?: 'openai' | 'google' | 'anthropic';
+  customVendor?: string;
   use_user_rules?: boolean; // If true, backend fetches rules from database
   use_memory?: boolean;
 }
@@ -58,13 +83,18 @@ export type StreamMessageType =
   | 'result'
   | 'query_result'    // Backend sends this for query results
   | 'ai_response'     // Backend sends this for AI-generated responses
+  | 'reasoning_step'
+  | 'reasoning_graph'
+  | 'chart_config'
+  | 'playbook_step'
   | 'error'
   | 'followup'
   | 'followup_questions' // Backend sends this when query needs clarification
   | 'confirmation'
   | 'destructive_confirmation' // Backend sends this for destructive operations
   | 'schema_refresh'  // Backend sends this after schema modifications
-  | 'status';
+  | 'status'
+  | 'metrics';        // Backend sends this for token usage & cost
 
 export interface StreamMessage {
   type: StreamMessageType;
@@ -109,5 +139,28 @@ export interface ApiError {
   error: string;
   detail?: string;
   status?: number;
+}
+
+export interface DashboardWidget {
+  id: string;
+  title: string;
+  graph_id?: string;
+  chart_type: string;
+  sql_query?: string;
+  chart_config?: any;
+  layout: {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+  };
+}
+
+export interface Dashboard {
+  id: string;
+  name: string;
+  description?: string;
+  created_at: string;
+  widgets: DashboardWidget[];
 }
 

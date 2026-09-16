@@ -1,5 +1,6 @@
 import { API_CONFIG, buildApiUrl } from '@/config/api';
 import { csrfHeaders } from '@/lib/csrf';
+import { apiFetch } from '@/utils/apiFetch';
 import type { ChatRequest, StreamMessage, ConfirmRequest } from '@/types/api';
 import { getVendorPrefix } from '@/utils/vendorConfig';
 
@@ -15,9 +16,9 @@ export class ChatService {
    */
   static async *streamQuery(request: ChatRequest): AsyncGenerator<StreamMessage, void, unknown> {
     try {
-      // The backend expects POST /graphs/{database_id}/v4
-      // We switch to /v4
-      const endpoint = `/graphs/${encodeURIComponent(request.database)}/v4`;
+      // The backend expects POST /graphs/{database_id}/v4 or /v5
+      const version = request.version || 'v4';
+      const endpoint = `/graphs/${encodeURIComponent(request.database)}/${version}`;
       
       // Transform conversation history to backend format
       // Backend expects:
@@ -41,6 +42,7 @@ export class ChatService {
       // Build request body with custom API key/model if provided
       const requestBody: Record<string, unknown> = {
         chat: chatHistory,
+        ...(request.threadId && { thread_id: request.threadId }),
         result: resultHistory.length > 0 ? resultHistory : undefined,
         ...(request.use_user_rules !== undefined && {
           use_user_rules: request.use_user_rules
@@ -54,14 +56,14 @@ export class ChatService {
         requestBody.custom_api_key = request.customApiKey;
       }
       if (request.customModel && request.customVendor) {
-        const vendorPrefix = getVendorPrefix(request.customVendor);
+        const vendorPrefix = getVendorPrefix(request.customVendor as any);
         const model = request.customModel;
         requestBody.custom_model = model.startsWith(`${vendorPrefix}/`)
           ? model
           : `${vendorPrefix}/${model}`;
       }
 
-      const response = await fetch(buildApiUrl(endpoint), {
+      const response = await apiFetch(buildApiUrl(endpoint), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -183,7 +185,7 @@ export class ChatService {
       // The backend expects POST /graphs/{database}/confirm
       const endpoint = `/graphs/${encodeURIComponent(database)}/confirm`;
 
-      const response = await fetch(buildApiUrl(endpoint), {
+      const response = await apiFetch(buildApiUrl(endpoint), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -300,6 +302,33 @@ export class ChatService {
       return messages;
     } catch (error) {
       console.error('Failed to execute query:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Fetch total system metrics (tokens, cost, api calls)
+   */
+  static async getTotalMetrics(): Promise<{
+    total_cost_usd: number;
+    total_tokens: number;
+    total_api_calls: number;
+    total_chats: number;
+  }> {
+    try {
+      const response = await apiFetch(buildApiUrl('/conversations/metrics/total'), {
+        headers: {
+          'Content-Type': 'application/json',
+          ...csrfHeaders(),
+        },
+        credentials: 'include',
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to fetch metrics: ${response.statusText}`);
+      }
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching total metrics:', error);
       throw error;
     }
   }

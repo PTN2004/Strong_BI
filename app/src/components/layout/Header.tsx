@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { ChevronDown, Star } from "lucide-react";
+import { ChevronDown, Star, Activity } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -8,6 +8,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
+import { ChatService } from "@/services/chat";
+
 interface HeaderProps {
   onConnectDatabase: () => void;
   onUploadSchema: () => void;
@@ -15,6 +17,19 @@ interface HeaderProps {
 
 const Header = ({ onConnectDatabase, onUploadSchema }: HeaderProps) => {
   const [githubStars, setGithubStars] = useState<string>('-');
+  const [metrics, setMetrics] = useState<{
+    total_cost_usd: number;
+    total_tokens: number;
+    total_api_calls: number;
+    total_chats: number;
+  } | null>(null);
+
+  useEffect(() => {
+    // Fetch metrics once on mount
+    ChatService.getTotalMetrics()
+      .then(data => setMetrics(data))
+      .catch(err => console.warn("Could not fetch metrics:", err));
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -100,6 +115,35 @@ const Header = ({ onConnectDatabase, onUploadSchema }: HeaderProps) => {
         <Star className="w-3 h-3" fill="currentColor" />
         <span className="text-sm font-medium">{githubStars}</span>
       </a>
+      
+      {/* System Metrics Banner */}
+      {metrics && (
+        <div className="absolute left-1/2 -translate-x-1/2 top-4 flex flex-col md:flex-row items-center gap-3 bg-card px-4 py-1.5 rounded-full border border-border shadow-sm text-xs select-none">
+          <div className="flex items-center gap-1.5 font-semibold text-primary">
+            <Activity className="w-4 h-4" />
+            System Usage
+          </div>
+          <div className="hidden md:block w-px h-4 bg-border"></div>
+          <div className="flex items-center gap-4 text-muted-foreground">
+             <div className="flex items-center gap-1">
+                <span>Chats:</span>
+                <span className="font-medium text-foreground">{metrics.total_chats.toLocaleString()}</span>
+             </div>
+             <div className="flex items-center gap-1">
+                <span>API Calls:</span>
+                <span className="font-medium text-foreground">{metrics.total_api_calls.toLocaleString()}</span>
+             </div>
+             <div className="flex items-center gap-1">
+                <span>Tokens:</span>
+                <span className="font-medium text-foreground">{metrics.total_tokens.toLocaleString()}</span>
+             </div>
+             <div className="flex items-center gap-1">
+                <span>Cost:</span>
+                <span className="font-medium text-emerald-500/90">${metrics.total_cost_usd.toFixed(4)}</span>
+             </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

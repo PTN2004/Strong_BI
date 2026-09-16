@@ -51,8 +51,10 @@ class ValidatorAgent(BaseAgent):
             }
         )
 
-        answer = run_completion(
-            self.messages, self.custom_model, self.custom_api_key, self.custom_api_base, temperature=0
+        answer, usage = run_completion(
+            self.messages, self.custom_model, self.custom_api_key, self.custom_api_base, temperature=0, return_usage=True
         )
         self.messages.append({"role": "assistant", "content": answer})
-        return parse_response(answer)
+        res = parse_response(answer)
+        res["usage"] = usage
+        return res

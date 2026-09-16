@@ -1,5 +1,6 @@
 import { API_CONFIG, buildApiUrl } from '@/config/api';
 import { csrfHeaders } from '@/lib/csrf';
+import { apiFetch } from '@/utils/apiFetch';
 import type { Graph, GraphUploadResponse, SchemaUploadRequest } from '@/types/api';
 
 /**
@@ -16,7 +17,7 @@ export class DatabaseService {
       const url = buildApiUrl(API_CONFIG.ENDPOINTS.GRAPHS);
       console.log('Fetching graphs from:', url);
       
-      const response = await fetch(url, {
+      const response = await apiFetch(url, {
         credentials: 'include',
       });
 
@@ -65,7 +66,7 @@ export class DatabaseService {
    */
   static async getGraph(id: string): Promise<Graph> {
     try {
-      const response = await fetch(
+      const response = await apiFetch(
         buildApiUrl(API_CONFIG.ENDPOINTS.GRAPH_BY_ID(id)),
         {
           credentials: 'include',
@@ -89,7 +90,7 @@ export class DatabaseService {
    */
   static async getGraphData(id: string): Promise<{ nodes: any[]; links: any[] }> {
     try {
-      const response = await fetch(
+      const response = await apiFetch(
         buildApiUrl(`/graphs/${encodeURIComponent(id)}/data`),
         {
           credentials: 'include',
@@ -113,7 +114,7 @@ export class DatabaseService {
    */
   static async exploreGraph(id: string, limit: number = 100): Promise<{ nodes: any[]; edges: any[] }> {
     try {
-      const response = await fetch(
+      const response = await apiFetch(
         buildApiUrl(`/graphs/${encodeURIComponent(id)}/explore?limit=${limit}`),
         {
           credentials: 'include',
@@ -137,7 +138,7 @@ export class DatabaseService {
    */
   static async executeCypher(id: string, query: string): Promise<{ results: any[] }> {
     try {
-      const response = await fetch(
+      const response = await apiFetch(
         buildApiUrl(`/graphs/${encodeURIComponent(id)}/cypher`),
         {
           method: 'POST',
@@ -180,7 +181,7 @@ export class DatabaseService {
         formData.append('description', request.description);
       }
 
-      const response = await fetch(buildApiUrl(API_CONFIG.ENDPOINTS.UPLOAD_SCHEMA), {
+      const response = await apiFetch(buildApiUrl(API_CONFIG.ENDPOINTS.UPLOAD_SCHEMA), {
         method: 'POST',
         body: formData,
         credentials: 'include',
@@ -211,7 +212,7 @@ export class DatabaseService {
    */
   static async deleteGraph(id: string): Promise<void> {
     try {
-      const response = await fetch(
+      const response = await apiFetch(
         buildApiUrl(API_CONFIG.ENDPOINTS.DELETE_GRAPH(id)),
         {
           method: 'DELETE',
@@ -240,7 +241,7 @@ export class DatabaseService {
     connectionUrl: string;
   }): Promise<GraphUploadResponse> {
     try {
-      const response = await fetch(buildApiUrl('/database'), {
+      const response = await apiFetch(buildApiUrl('/database'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -299,7 +300,7 @@ export class DatabaseService {
       const protocol = config.type === 'mysql' ? 'mysql' : 'postgresql';
       const connectionUrl = `${protocol}://${encodeURIComponent(config.username)}:${encodeURIComponent(config.password)}@${config.host}:${config.port}/${encodeURIComponent(config.database)}`;
       
-      const response = await fetch(buildApiUrl('/database'), {
+      const response = await apiFetch(buildApiUrl('/database'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -348,7 +349,7 @@ export class DatabaseService {
     try {
       const url = buildApiUrl(`${API_CONFIG.ENDPOINTS.GRAPHS}/${graphId}/user-rules`);
       
-      const response = await fetch(url, {
+      const response = await apiFetch(url, {
         credentials: 'include',
       });
 
@@ -372,7 +373,7 @@ export class DatabaseService {
    */
   static async getSchemaMetadata(id: string): Promise<{ table_name: string; description: string; columns: { name: string; type: string; description: string; key_type: string }[] }[]> {
     try {
-      const response = await fetch(
+      const response = await apiFetch(
         buildApiUrl(`/graphs/${encodeURIComponent(id)}/schema_metadata`),
         {
           credentials: 'include',
@@ -399,7 +400,7 @@ export class DatabaseService {
     updateData: { type: 'table' | 'column'; table_name: string; column_name?: string; description: string }
   ): Promise<void> {
     try {
-      const response = await fetch(
+      const response = await apiFetch(
         buildApiUrl(`/graphs/${encodeURIComponent(id)}/schema_metadata`),
         {
           method: 'PUT',
@@ -431,7 +432,7 @@ export class DatabaseService {
       const url = buildApiUrl(`${API_CONFIG.ENDPOINTS.GRAPHS}/${graphId}/user-rules`);
       console.log('PUT request to:', url);
       
-      const response = await fetch(url, {
+      const response = await apiFetch(url, {
         method: 'PUT',
         credentials: 'include',
         headers: {

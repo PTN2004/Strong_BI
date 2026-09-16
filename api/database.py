@@ -80,7 +80,7 @@ def init_db() -> None:
     Tự động tạo tất cả các bảng được định nghĩa trong ORM model.
     Gọi hàm này khi server khởi động.
     """
-    from api.auth.models import User, UserToken  # noqa: F401
+    from api.auth.models import User, UserToken, Workspace, WorkspaceUser, Dashboard, DashboardWidget  # noqa: F401
     try:
         engine = _get_engine()
         Base.metadata.create_all(bind=engine)
@@ -92,6 +92,20 @@ def init_db() -> None:
             conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS llm_model VARCHAR(100);"))
             conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS llm_api_key VARCHAR(255);"))
             conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS llm_api_base VARCHAR(255);"))
+            
+            # Add new token & cost columns to chat_threads table
+            conn.execute(text("ALTER TABLE chat_threads ADD COLUMN IF NOT EXISTS prompt_tokens INTEGER;"))
+            conn.execute(text("ALTER TABLE chat_threads ADD COLUMN IF NOT EXISTS completion_tokens INTEGER;"))
+            conn.execute(text("ALTER TABLE chat_threads ADD COLUMN IF NOT EXISTS total_tokens INTEGER;"))
+            conn.execute(text("ALTER TABLE chat_threads ADD COLUMN IF NOT EXISTS cost_usd FLOAT;"))
+            conn.execute(text("ALTER TABLE chat_threads ADD COLUMN IF NOT EXISTS api_calls_count INTEGER;"))
+            conn.execute(text("ALTER TABLE chat_threads ADD COLUMN IF NOT EXISTS engine_version VARCHAR(16);"))
+            conn.execute(text("ALTER TABLE chat_threads ADD COLUMN IF NOT EXISTS workspace_id UUID;"))
+            
+            # Add new business context columns to workspaces table
+            conn.execute(text("ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS industry VARCHAR(100);"))
+            conn.execute(text("ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS business_goals VARCHAR(1000);"))
+            conn.execute(text("ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS kpi_focus VARCHAR(1000);"))
             
         logger.info("PostgreSQL tables initialized successfully.")
     except Exception as e:

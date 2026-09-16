@@ -11,3 +11,5 @@ wheels/
 node_modules/
 app/node_modules/
 .env
+
+db-seedlogs/

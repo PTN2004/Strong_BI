@@ -54,12 +54,12 @@ def _step_detect_db_type(steps_counter: int, url: str) -> tuple[type[BaseLoader]
 
 
 async def _step_attempt_load(
-    steps_counter: int, loader: type[BaseLoader], user_id: str, url: str, db=None,
+    steps_counter: int, loader: type[BaseLoader], workspace_id: str, url: str, db=None,
 ) -> AsyncGenerator[dict[str, str | bool], None]:
     success, result = [False, ""]
     try:
         load_start = time.perf_counter()
-        async for progress in loader.load(user_id, url, db=db):
+        async for progress in loader.load(workspace_id, url, db=db):
             success, result = progress
             if success:
                 steps_counter += 1
@@ -93,7 +93,7 @@ def _step_result(result) -> str:
     return json.dumps(result) + MESSAGE_DELIMITER
 
 
-async def load_database(url: str, user_id: str, db=None):
+async def load_database(url: str, workspace_id: str, db=None):
 
     # Validate URL format
     if len(url.strip()) == 0:
@@ -115,7 +115,7 @@ async def load_database(url: str, user_id: str, db=None):
 
             # Step 3: Attempt to load schema using the loader
             async for progress in _step_attempt_load(
-                steps_counter, loader, user_id, url, db=db,
+                steps_counter, loader, workspace_id, url, db=db,
             ):
                 yield _step_result(progress)
 
@@ -136,30 +136,32 @@ async def load_database(url: str, user_id: str, db=None):
     return generate()
 
 
-async def list_databases(user_id: str, general_prefix: Optional[str] = None, db=None) -> list[str]:
+async def list_databases(workspace_id: str, general_prefix: Optional[str] = None, db=None) -> list[str]:
     
     graph = GraphDatabaseFactory.create()
     try:
         await graph.connect()
         user_graphs = await graph.list_graph()
 
-        # Only include graphs that start with user_id + '_', and strip the prefix
+        # Only include graphs that start with workspace_id + '_', and strip the prefix
         if type(graph).__name__ == "Neo4jGraphDatabase" and not getattr(graph, "is_enterprise", False):
             # Neo4j CE: We distinguish user graphs via Database nodes created by Graphiti
             res = await graph.query("MATCH (d:Database) RETURN DISTINCT d.name as name", {})
             filtered_graphs = [r["name"] for r in res.result_set if isinstance(r, dict) and "name" in r]
         else:
             import re
-            safe_user_id = re.sub(r'[^a-zA-Z0-9\.\-]', '-', user_id.lower())
-            prefix = f"db-{safe_user_id}-"
+            safe_workspace_id = re.sub(r'[^a-zA-Z0-9\.\-]', '-', workspace_id.lower())
+            prefix = f"ws-{safe_workspace_id}-"
             
             filtered_graphs = []
             for g in user_graphs:
                 if g.startswith(prefix):
                     filtered_graphs.append(g[len(prefix):])
-                # Fallback backward compatibility for non-neo4j or old graphs
-                elif g.startswith(f"{user_id}_"):
-                    filtered_graphs.append(g[len(f"{user_id}_"):])
+                # Fallback backward compatibility
+                elif g.startswith(f"db-{safe_workspace_id}-"):
+                    filtered_graphs.append(g[len(f"db-{safe_workspace_id}-"):])
+                elif g.startswith(f"{workspace_id}_"):
+                    filtered_graphs.append(g[len(f"{workspace_id}_"):])
 
         if general_prefix:
             demo_graphs = [
@@ -172,7 +174,7 @@ async def list_databases(user_id: str, general_prefix: Optional[str] = None, db=
         await graph.disconnect()
 
 
-async def load_database_sync(url: str, user_id: str, db=None):
+async def load_database_sync(url: str, workspace_id: str, db=None):
 
     # Validate URL format
     if not url or len(url.strip()) == 0:
@@ -186,7 +188,7 @@ async def load_database_sync(url: str, user_id: str, db=None):
     success = False
 
     try:
-        async for progress_success, _progress_message in loader.load(user_id, url, db=db):
+        async for progress_success, _progress_message in loader.load(workspace_id, url, db=db):
             success = progress_success
 
         if success:

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Home, MessageSquare, Database, LogOut, Settings, ChevronLeft, ChevronRight, Zap } from 'lucide-react';
+import { Home, MessageSquare, Database, LogOut, Settings, ChevronLeft, ChevronRight, Zap, History } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import ThemeToggle from '@/components/ui/theme-toggle';
 import { useAuth } from '@/contexts/AuthContext';
@@ -38,10 +38,11 @@ const V2Layout = ({ children }: V2LayoutProps) => {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
-  const isHome = location.pathname === '/';
+  const isHome = location.pathname === '/' || location.pathname === '/v2/home';
   const isWorkspace = location.pathname.startsWith('/workspace');
   const isDatabases = location.pathname.startsWith('/databases');
   const isSettings = location.pathname.startsWith('/settings');
+  const isConversations = location.pathname.startsWith('/conversations');
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
@@ -100,6 +101,7 @@ const V2Layout = ({ children }: V2LayoutProps) => {
           <SidebarItem icon={Home} label="Home" isActive={isHome} isCollapsed={isSidebarCollapsed} onClick={() => navigate('/')} />
           <SidebarItem icon={MessageSquare} label="Workspace" isActive={isWorkspace} isCollapsed={isSidebarCollapsed} onClick={() => navigate('/workspace')} />
           <SidebarItem icon={Database} label="Data Sources" isActive={isDatabases} isCollapsed={isSidebarCollapsed} onClick={() => navigate('/databases')} />
+          <SidebarItem icon={History} label="Lịch sử hội thoại" isActive={isConversations} isCollapsed={isSidebarCollapsed} onClick={() => navigate('/conversations')} />
         </nav>
 
         {/* Bottom Actions */}

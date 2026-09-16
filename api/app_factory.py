@@ -21,6 +21,8 @@ from api.routes.graphs import graphs_router
 from api.routes.database import database_router
 from api.routes.tokens import tokens_router
 from api.routes.settings import settings_router
+from api.routes.conversations import conversations_router
+from api.routes.dashboards import dashboards_router
 from contextlib import asynccontextmanager
 from api.graph_db.factory import GraphDatabaseFactory
 
@@ -209,6 +211,8 @@ def create_app():
     app.include_router(database_router)
     app.include_router(tokens_router, prefix="/tokens")
     app.include_router(settings_router, prefix="/settings")
+    app.include_router(conversations_router, prefix="/conversations")
+    app.include_router(dashboards_router, prefix="/dashboards")
 
     # 3. GẮN MCP BẰNG MOUNT (KHÔNG CHẮP VÁ ROUTE)
     disable_mcp = os.getenv("DISABLE_MCP", "false").lower() in ("1", "true", "yes")

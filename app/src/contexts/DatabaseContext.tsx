@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { DatabaseService } from '@/services/database';
 import type { Graph } from '@/types/api';
+import { useWorkspace } from './WorkspaceContext';
 
 interface DatabaseContextType {
   graphs: Graph[];
@@ -15,6 +16,7 @@ interface DatabaseContextType {
 const DatabaseContext = createContext<DatabaseContextType | undefined>(undefined);
 
 export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { activeWorkspace } = useWorkspace();
   const [graphs, setGraphs] = useState<Graph[]>([]);
   const [selectedGraph, setSelectedGraph] = useState<Graph | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -25,12 +27,13 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       const fetchedGraphs = await DatabaseService.getGraphs();
       setGraphs(fetchedGraphs);
 
-      // Auto-select first graph if none selected (using functional update to avoid stale closure)
+      // Auto-select first graph if none selected or keep existing if still present
       setSelectedGraph(current => {
-        if (!current && fetchedGraphs.length > 0) {
-          return fetchedGraphs[0];
+        if (fetchedGraphs.length === 0) return null;
+        if (current && fetchedGraphs.some(g => g.id === current.id)) {
+          return current;
         }
-        return current;
+        return fetchedGraphs[0];
       });
     } catch (error) {
       console.log('Backend not available - running in demo mode without saved databases');
@@ -43,8 +46,7 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   useEffect(() => {
     fetchGraphs();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Only run on mount - fetchGraphs is stable
+  }, [activeWorkspace?.id]);
 
   const selectGraph = (graphId: string) => {
     const graph = graphs.find(g => g.id === graphId);

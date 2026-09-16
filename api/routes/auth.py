@@ -20,9 +20,9 @@ from pydantic import BaseModel
 
 from api.database import get_db_session
 from api.auth.user_management import (
-    register_user, authenticate_user, get_user_by_token, delete_token
+    register_user, authenticate_user, get_user_by_token, delete_token, token_required
 )
-from api.auth.models import UserRole
+from api.auth.models import UserRole, WorkspaceRole
 
 # Import GENERAL_PREFIX from graphs route
 GENERAL_PREFIX = os.getenv("GENERAL_PREFIX")
@@ -202,249 +202,7 @@ def _validate_email(email: str) -> bool:
     return re.match(pattern, email) is not None
 
 
-async def _set_mail_hash(email: str, password_hash: str) -> bool:
-    """Set email hash for the user in the database."""
-    try:
-        db = await get_default_db()
-        db.select_graph("Organizations")
-        # Sanitize inputs for logging
-        safe_email = _sanitize_for_log(email)
 
-        # Create new email identity and user
-        create_query = """
-        MERGE (i:Identity {
-            provider_user_id: $email,
-            email: $email
-        })
-        SET i.password_hash = $password_hash
-        RETURN i
-        """
-
-        result = await db.query(create_query, {
-            "email": email,
-            "password_hash": password_hash,
-        })
-
-        if result.result_set:
-            return True
-        else:
-            logging.error("Failed to set email hash for user: %s", safe_email)
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Internal server error"
-            )
-
-    except Exception as e:
-        logging.error(
-            "Error setting email hash for user %s: %s", safe_email, e)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error"
-        )
-
-
-def _is_request_secure(request: Request) -> bool:
-    forwarded_proto = request.headers.get("x-forwarded-proto")
-    if forwarded_proto:
-        return forwarded_proto == "https"
-
-    return request.url.scheme == "https"
-
-
-async def _authenticate_email_user(email: str, password: str):
-    """Authenticate an email user."""
-    try:
-        db = await get_default_db()
-        db.select_graph("Organizations")
-        # Find user by email
-        query = """
-        MATCH (i:Identity {provider: 'email', email: $email})-[:AUTHENTICATES]->(u:User)
-        RETURN i, u
-        """
-
-        result = await db.query(query, {"email": email})
-
-        if not result.result_set:
-            return False, "Invalid email or password"
-
-        row = result.result_set[0]
-        identity = row.get("identity", {})
-        user = row.get("user", {})
-
-        # Verify password - access Node properties correctly
-        stored_password_hash = identity.properties.get('password_hash')
-        if not stored_password_hash or not _verify_password(password, stored_password_hash):
-            return False, "Invalid email or password"
-
-        # Update last login
-        update_query = """
-        MATCH (i:Identity {provider: 'email', email: $email})
-        SET i.last_login = timestamp()
-        """
-        await db.query(update_query, {"email": email})
-
-        logging.info("EMAIL USER AUTHENTICATED: email=%r",
-                     _sanitize_for_log(email))
-        return True, {"identity": identity, "user": user}
-
-    except Exception as e:
-        logging.error("Error authenticating email user: %s", e)
-        return False, "Internal error"
-
-
-@auth_router.post("/signup/email")
-async def email_signup(request: Request, signup_data: EmailSignupRequest) -> JSONResponse:
-    try:
-        if not _is_email_auth_enabled():
-            return JSONResponse(
-                {"success": False, "error": "Email authentication is not enabled"},
-                status_code=status.HTTP_403_FORBIDDEN
-            )
-
-        if not all([signup_data.firstName, signup_data.lastName,
-                    signup_data.email, signup_data.password]):
-            return JSONResponse(
-                {"success": False, "error": "All fields are required"},
-                status_code=status.HTTP_400_BAD_REQUEST
-            )
-
-        first_name = signup_data.firstName.strip()
-        last_name = signup_data.lastName.strip()
-        email = signup_data.email.strip().lower()
-        password = signup_data.password
-
-        if not _validate_email(email):
-            return JSONResponse(
-                {"success": False, "error": "Invalid email format"},
-                status_code=status.HTTP_400_BAD_REQUEST
-            )
-
-        if len(password) < 8:
-            return JSONResponse(
-                {"success": False, "error": "Password must be at least 8 characters long"},
-                status_code=status.HTTP_400_BAD_REQUEST
-            )
-
-        api_token = secrets.token_urlsafe(32)
-        success, user_info = await ensure_user_in_organizations(email, email,
-                                                                f"{first_name} {last_name}", "email", api_token)
-
-        if success and user_info and user_info["new_identity"]:
-            logging.info("New user created: %s", _sanitize_for_log(email))
-
-            # Hash password
-            password_hash = _hash_password(password)
-
-            # Set email hash
-            await _set_mail_hash(email, password_hash)
-
-        else:
-            logging.info("User already exists: %s", _sanitize_for_log(email))
-
-        logging.info("User registration successful: %s",
-                     _sanitize_for_log(email))
-
-        response = JSONResponse({
-            "success": True,
-        }, status_code=201)
-        response.set_cookie(
-            key="api_token",
-            value=api_token,
-            httponly=True,
-            secure=_is_request_secure(request)
-        )
-        return response
-
-    except Exception as e:
-        logging.error("Signup error: %s", e)
-        return JSONResponse(
-            {"success": False, "error": "Registration failed"},
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
-
-
-@auth_router.post("/login/email")
-async def email_login(request: Request, login_data: EmailLoginRequest) -> JSONResponse:
-    """Handle email/password user login."""
-    try:
-        # Check if email authentication is enabled
-        if not _is_email_auth_enabled():
-            return JSONResponse(
-                {"success": False, "error": "Email authentication is not enabled"},
-                status_code=status.HTTP_403_FORBIDDEN
-            )
-
-        # Validate required fields
-        if not login_data.email or not login_data.password:
-            return JSONResponse(
-                {"success": False, "error": "Email and password are required"},
-                status_code=status.HTTP_400_BAD_REQUEST
-            )
-
-        email = login_data.email.strip().lower()
-        password = login_data.password
-
-        # Validate email format
-        if not _validate_email(email):
-            return JSONResponse(
-                {"success": False, "error": "Invalid email format"},
-                status_code=status.HTTP_400_BAD_REQUEST
-            )
-
-        # Authenticate user
-        success, result = await _authenticate_email_user(email, password)
-
-        if not success:
-            return JSONResponse(
-                {"success": False, "error": result},
-                status_code=status.HTTP_401_UNAUTHORIZED
-            )
-
-        # Set session data - result is a dict when success is True
-        if isinstance(result, dict):
-            identity_node = result.get("identity")
-
-            identity_props = (
-                identity_node.properties
-                if identity_node and hasattr(identity_node, "properties")
-                else {}
-            )
-
-            user_data = {
-                'id': identity_props.get("provider_user_id", email),
-                'email': identity_props.get('email', email),
-                'name': identity_props.get('name', ''),
-                'picture': identity_props.get('picture', ''),
-            }
-
-            # Call the registered Google callback handler if it exists to store user data.
-            handler = getattr(request.app.state, "callback_handler", None)
-            if handler:
-                api_token = secrets.token_urlsafe(
-                    32)  # ~43 chars, hard to guess
-
-                # Call the registered handler (await if async)
-                await handler('email', user_data, api_token)
-                response = JSONResponse({"success": True}, status_code=200)
-
-                response.set_cookie(
-                    key="api_token",
-                    value=api_token,
-                    httponly=True,
-                    secure=_is_request_secure(request)
-                )
-                return response
-
-        return JSONResponse(
-            {"success": False, "error": "Authentication failed"},
-            status_code=status.HTTP_401_UNAUTHORIZED
-        )
-    except Exception as e:
-        logging.error("Login error: %s", e)
-        return JSONResponse(
-            {"success": False, "error": "Login failed"},
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
 
 # ---- Helpers ----
 
@@ -743,6 +501,22 @@ def auth_status(request: Request) -> JSONResponse:
         user = get_user_by_token(db, api_token)
         if not user:
             return JSONResponse(content={"authenticated": False}, status_code=200)
+            
+        from api.auth.models import WorkspaceUser, Workspace
+        ws_users = db.query(WorkspaceUser).filter(WorkspaceUser.user_id == user.id).all()
+        workspaces = []
+        for wsu in ws_users:
+            ws = db.query(Workspace).filter(Workspace.id == wsu.workspace_id).first()
+            if ws:
+                workspaces.append({
+                    "id": str(ws.id),
+                    "name": ws.name,
+                    "slug": ws.slug,
+                    "role": wsu.role.value,
+                    "industry": ws.industry,
+                    "business_goals": ws.business_goals,
+                    "kpi_focus": ws.kpi_focus
+                })
 
         return JSONResponse(
             content={
@@ -753,6 +527,7 @@ def auth_status(request: Request) -> JSONResponse:
                     "name": f"{user.first_name} {user.last_name}".strip(),
                     "picture": None,
                     "role": user.role.value,
+                    "workspaces": workspaces,
                 }
             }
         )
@@ -935,6 +710,136 @@ def delete_user(request: Request, user_id: str) -> JSONResponse:
         db.close()
 
 
+
+
+class CreateWorkspaceRequest(BaseModel):
+    name: str
+    industry: Optional[str] = None
+    business_goals: Optional[str] = None
+    kpi_focus: Optional[str] = None
+
+class UpdateWorkspaceRequest(BaseModel):
+    name: Optional[str] = None
+    industry: Optional[str] = None
+    business_goals: Optional[str] = None
+    kpi_focus: Optional[str] = None
+
+@auth_router.post("/workspaces")
+@token_required
+def create_workspace(request: Request, payload: CreateWorkspaceRequest) -> JSONResponse:
+    """Tạo một Workspace mới và gán user hiện tại làm OWNER."""
+    name = payload.name.strip()
+    if not name:
+        return JSONResponse({"error": "Tên Workspace không được để trống"}, status_code=400)
+        
+    db = next(get_db_session())
+    try:
+        from api.auth.models import Workspace, WorkspaceUser, WorkspaceRole
+        import secrets, uuid, re
+        
+        safe_slug = re.sub(r'[^a-zA-Z0-9\.\-]', '-', name.lower())
+        slug = f"{safe_slug[:20]}-{secrets.token_hex(4)}"
+        
+        new_ws = Workspace(
+            id=uuid.uuid4(),
+            name=name,
+            slug=slug,
+            industry=payload.industry,
+            business_goals=payload.business_goals,
+            kpi_focus=payload.kpi_focus
+        )
+        db.add(new_ws)
+        db.flush()
+        
+        wsu = WorkspaceUser(
+            workspace_id=new_ws.id,
+            user_id=request.state.user_id,
+            role=WorkspaceRole.OWNER
+        )
+        db.add(wsu)
+        db.commit()
+        db.refresh(new_ws)
+        
+        return JSONResponse({
+            "success": True,
+            "workspace": {
+                "id": str(new_ws.id),
+                "name": new_ws.name,
+                "slug": new_ws.slug,
+                "role": WorkspaceRole.OWNER.value,
+                "industry": new_ws.industry,
+                "business_goals": new_ws.business_goals,
+                "kpi_focus": new_ws.kpi_focus
+            }
+        })
+    except Exception as e:
+        db.rollback()
+        logging.error("Failed to create workspace: %s", e)
+        return JSONResponse({"error": f"Lỗi tạo workspace: {str(e)}"}, status_code=500)
+    finally:
+        db.close()
+
+@auth_router.put("/workspaces/{workspace_id}")
+@token_required
+def update_workspace(request: Request, workspace_id: str, payload: UpdateWorkspaceRequest) -> JSONResponse:
+    """Cập nhật thông tin Business Context của Workspace (Chỉ dành cho Owner/Admin)."""
+    db = next(get_db_session())
+    try:
+        from api.auth.models import Workspace, WorkspaceUser, WorkspaceRole
+        
+        # Check permissions
+        wsu = db.query(WorkspaceUser).filter(
+            WorkspaceUser.workspace_id == workspace_id,
+            WorkspaceUser.user_id == request.state.user_id
+        ).first()
+        
+        if not wsu or wsu.role not in [WorkspaceRole.OWNER, WorkspaceRole.ADMIN]:
+            return JSONResponse({"error": "Permission denied. Only Admins can update Workspace settings."}, status_code=403)
+            
+        workspace = db.query(Workspace).filter(Workspace.id == workspace_id).first()
+        if not workspace:
+            return JSONResponse({"error": "Workspace not found"}, status_code=404)
+            
+        if payload.name is not None and payload.name.strip():
+            workspace.name = payload.name.strip()
+        if payload.industry is not None:
+            workspace.industry = payload.industry
+        if payload.business_goals is not None:
+            workspace.business_goals = payload.business_goals
+        if payload.kpi_focus is not None:
+            workspace.kpi_focus = payload.kpi_focus
+            
+        db.commit()
+        return JSONResponse({"success": True})
+    finally:
+        db.close()
+
+@auth_router.delete("/workspaces/{workspace_id}")
+@token_required
+def delete_workspace(request: Request, workspace_id: str) -> JSONResponse:
+    """Xóa Workspace (Chỉ dành cho OWNER)."""
+    db = next(get_db_session())
+    try:
+        from api.auth.models import Workspace, WorkspaceUser, WorkspaceRole
+        
+        # Check permissions
+        wsu = db.query(WorkspaceUser).filter(
+            WorkspaceUser.workspace_id == workspace_id,
+            WorkspaceUser.user_id == request.state.user_id
+        ).first()
+        
+        if not wsu or wsu.role != WorkspaceRole.OWNER:
+            return JSONResponse({"error": "Chỉ có Chủ sở hữu (Owner) mới có quyền xóa Workspace."}, status_code=403)
+            
+        workspace = db.query(Workspace).filter(Workspace.id == workspace_id).first()
+        if not workspace:
+            return JSONResponse({"error": "Workspace not found"}, status_code=404)
+            
+        db.delete(workspace)
+        db.commit()
+        return JSONResponse({"success": True, "message": "Đã xóa workspace thành công"})
+    finally:
+        db.close()
 
 
 def init_auth(app):

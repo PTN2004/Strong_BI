@@ -33,13 +33,19 @@ interface ChatMessageProps {
     operationType: string;
     message: string;
   };
+  metrics?: {
+    total_tokens: number;
+    cost_usd: number;
+    api_calls_count: number;
+    engine_version: string;
+  };
   progress?: number; // Progress percentage for AI steps
   user?: UserType | null; // User info for avatar
   onConfirm?: () => void;
   onCancel?: () => void;
 }
 
-const ChatMessage = ({ type, content, steps, queryData, chartConfig, analysisInfo, confirmationData, progress, user, onConfirm, onCancel }: ChatMessageProps) => {
+const ChatMessage = ({ type, content, steps, queryData, chartConfig, analysisInfo, confirmationData, metrics, progress, user, onConfirm, onCancel }: ChatMessageProps) => {
   const [copied, setCopied] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -173,6 +179,26 @@ const ChatMessage = ({ type, content, steps, queryData, chartConfig, analysisInf
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
                   {content}
                 </ReactMarkdown>
+                {metrics && (
+                  <div className="mt-4 pt-3 border-t border-border/50 flex flex-wrap gap-2 text-xs text-muted-foreground select-none">
+                    <div className="flex items-center gap-1.5 bg-muted/30 px-2.5 py-1 rounded-md border border-border/50">
+                      <span className="font-medium">Model:</span>
+                      <span className="text-primary font-semibold uppercase">{metrics.engine_version}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 bg-muted/30 px-2.5 py-1 rounded-md border border-border/50">
+                      <span className="font-medium">API Calls:</span>
+                      <span>{metrics.api_calls_count}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 bg-muted/30 px-2.5 py-1 rounded-md border border-border/50">
+                      <span className="font-medium">Tokens:</span>
+                      <span>{metrics.total_tokens.toLocaleString()}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 bg-muted/30 px-2.5 py-1 rounded-md border border-border/50">
+                      <span className="font-medium">Cost:</span>
+                      <span className="text-emerald-500/90 font-medium">${metrics.cost_usd.toFixed(4)}</span>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>

@@ -8,7 +8,8 @@ from api.config import Config, get_dynamic_api_key
 
 
 def run_completion(messages: List[Dict[str, str]], custom_model: str = None,
-                   custom_api_key: str = None, custom_api_base: str = None, **kwargs) -> str:
+                   custom_api_key: str = None, custom_api_base: str = None, 
+                   return_usage: bool = False, **kwargs) -> str | tuple[str, dict]:
 
     model = custom_model if custom_model else Config.COMPLETION_MODEL
 
@@ -44,10 +45,51 @@ def run_completion(messages: List[Dict[str, str]], custom_model: str = None,
             if dynamic_key:
                 completion_args["api_key"] = dynamic_key
 
+    # Nếu key là "none" (placeholder) hoặc thiếu, mà không có api_base tuỳ chỉnh -> Không gọi được API ngoài
+    current_key = completion_args.get("api_key")
+    if (not current_key or current_key == "none") and not completion_args.get("api_base"):
+        import logging
+        logging.warning(f"No valid API key found for {model}. Falling back to system default {Config.COMPLETION_MODEL}")
+        
+        # Fallback về system default model
+        model = Config.COMPLETION_MODEL
+        completion_args["model"] = model
+        
+        # Resolve lại api key cho system default model
+        if model.startswith("vllm/") or model.startswith("custom_openai/"):
+            api_base = os.getenv("VLLM_API_BASE") or os.getenv("OPENAI_API_BASE")
+            if api_base:
+                completion_args["api_base"] = api_base.strip()
+            api_key = os.getenv("VLLM_API_KEY") or os.getenv("OPENAI_API_KEY") or "none"
+            completion_args["api_key"] = api_key.strip()
+        elif model.startswith("ollama/"):
+            api_base = os.getenv("OLLAMA_API_BASE")
+            if api_base:
+                completion_args["api_base"] = api_base.strip()
+        elif model.startswith("openai/") or model.startswith("gemini/") or model.startswith("openrouter/"):
+            api_base = os.getenv("OPENAI_API_BASE")
+            if api_base and model.startswith("openai/"):
+                completion_args["api_base"] = api_base.strip()
+            
+            dynamic_key = get_dynamic_api_key(model)
+            if dynamic_key:
+                completion_args["api_key"] = dynamic_key
+
     completion_args["timeout"] = 120
 
     result = completion(**completion_args)
-    return filter_thinking_process(result.choices[0].message.content)
+    content = filter_thinking_process(result.choices[0].message.content)
+    
+    if return_usage:
+        usage = {}
+        if hasattr(result, "usage") and result.usage:
+            usage = {
+                "prompt_tokens": getattr(result.usage, "prompt_tokens", 0),
+                "completion_tokens": getattr(result.usage, "completion_tokens", 0),
+                "total_tokens": getattr(result.usage, "total_tokens", 0),
+            }
+        return content, usage
+    return content
 
 
 def filter_thinking_process(text: str) -> str:
@@ -70,9 +112,9 @@ def filter_thinking_process(text: str) -> str:
 
 class BaseAgent:  
 
-    def __init__(self, queries_history: list, result_history: list,
+    def __init__(self, queries_history: list = None, result_history: list = None,
                  custom_api_key: str = None, custom_model: str = None, custom_api_base: str = None):
-        if result_history is None:
+        if not result_history or not queries_history:
             self.messages = []
         else:
             self.messages = []

@@ -1,0 +1,763 @@
+{
+    "timestamp": "2026-09-16T13:57:01.222427",
+    "agent": "LangGraph_Execution_V4_5",
+    "inputs": {
+        "user_id": null,
+        "graph_id": "db-48c5a480-a696-4a7d-8539-58e1f211866e-dms"
+    },
+    "outputs": {
+        "initial_state": {
+            "workspace_id": "48c5a480-a696-4a7d-8539-58e1f211866e",
+            "user_id": "48c5a480-a696-4a7d-8539-58e1f211866e",
+            "graph_id": "db-48c5a480-a696-4a7d-8539-58e1f211866e-dms",
+            "chat_data": "chat=['Số lượng đơn hàng và doanh số theo tháng năm nay', 'Số lượng đơn hàng và doanh số theo tháng năm nay', 'Số lượng đơn hàng và doanh số theo tháng năm nay', 'Số lượng đơn hàng và doanh số theo tháng năm nay', 'Số lượng đơn hàng và doanh số theo tháng năm nay', 'Số lượng đơn hàng và doanh số theo tháng năm nay'] result=['### 1. Tóm tắt điều hành\\n\\nTrong 8 tháng đầu năm nay, tổng doanh thu của Công ty đạt 118,36 tỷ VNĐ từ 167.279 đơn hàng. Doanh thu trung bình mỗi đơn hàng là 707.570 VNĐ. Tháng 1 ghi nhận doanh thu cao nhất với 23,39 tỷ VNĐ, trong khi tháng 8 có mức doanh thu và số lượng đơn hàng thấp nhất, cho thấy x\\n[DATA lượt này — bind bằng id/code khi hỏi tiếp]: [{\"month\":1,\"so_don_hang\":23503,\"doanh_thu\":23387647697},{\"month\":2,\"so_don_hang\":17019,\"doanh_thu\":14658136450},{\"month\":3,\"so_don_hang\":22440,\"doanh_thu\":17138142419},{\"month\":4,\"so_don_hang\":26408,\"doanh_thu\":15669548080},{\"month\":5,\"so_don_hang\":26282,\"doanh_thu\":15309102244}]', '### 1. Tóm tắt điều hành\\n\\nTrong năm nay, tổng số đơn hàng đã đạt 167.779 đơn với tổng doanh thu là 113,36 tỷ VNĐ. Doanh thu và số lượng đơn hàng có xu hướng giảm dần từ tháng 5, đặc biệt giảm mạnh trong tháng 8, cho thấy những biến động đáng kể cần được phân tích sâu hơn để duy trì hiệu quả kinh doa\\n[DATA lượt này — bind bằng id/code khi hỏi tiếp]: [{\"month\":1,\"so_don_hang\":23503,\"doanh_thu\":23387647697},{\"month\":2,\"so_don_hang\":17019,\"doanh_thu\":14658136450},{\"month\":3,\"so_don_hang\":22440,\"doanh_thu\":17138142419},{\"month\":4,\"so_don_hang\":26408,\"doanh_thu\":15669548080},{\"month\":5,\"so_don_hang\":26282,\"doanh_thu\":15309102244}]', '### 1. Tóm tắt điều hành\\n\\nTrong 8 tháng đầu năm nay, tổng số lượng đơn hàng đạt 167.279 đơn với tổng doanh thu là 118.366 tỷ VNĐ. Doanh thu và số lượng đơn hàng có xu hướng giảm dần từ tháng 4 đến tháng 7, và ghi nhận mức giảm đáng kể trong tháng 8, cho thấy sự sụt giảm hiệu suất kinh doanh cần được\\n[DATA lượt này — bind bằng id/code khi hỏi tiếp]: [{\"month\":1,\"so_don_hang\":23503,\"doanh_thu\":23387647697},{\"month\":2,\"so_don_hang\":17019,\"doanh_thu\":14658136450},{\"month\":3,\"so_don_hang\":22440,\"doanh_thu\":17138142419},{\"month\":4,\"so_don_hang\":26408,\"doanh_thu\":15669548080},{\"month\":5,\"so_don_hang\":26282,\"doanh_thu\":15309102244}]', '### 1. Tóm tắt điều hành\\n\\nTrong năm nay, tổng doanh thu đạt hơn 118.3 tỷ VNĐ từ 167,279 đơn hàng đã được duyệt. Doanh thu và số lượng đơn hàng có xu hướng biến động qua các tháng, với tháng 1 ghi nhận mức cao nhất và tháng 8 có sự sụt giảm đáng kể.\\n\\n### 2. Thực trạng & Phân tích chi tiết số liệu\\n\\nTổ\\n[DATA lượt này — bind bằng id/code khi hỏi tiếp]: [{\"month\":1,\"so_don_hang\":23503,\"doanh_thu\":23387647697},{\"month\":2,\"so_don_hang\":17019,\"doanh_thu\":14658136450},{\"month\":3,\"so_don_hang\":22440,\"doanh_thu\":17138142419},{\"month\":4,\"so_don_hang\":26408,\"doanh_thu\":15669548080},{\"month\":5,\"so_don_hang\":26282,\"doanh_thu\":15309102244}]', '### 1. Tóm tắt điều hành\\n\\nTrong 8 tháng đầu năm nay, tổng doanh thu đạt hơn 118,36 tỷ VNĐ từ 167.279 đơn hàng. Doanh thu và số lượng đơn hàng có xu hướng giảm dần từ tháng 1 đến tháng 8, đặc biệt ghi nhận sự sụt giảm đáng kể trong tháng 8.\\n\\n### 2. Thực trạng & Phân tích chi tiết số liệu\\n\\n**Tổng quan\\n[DATA lượt này — bind bằng id/code khi hỏi tiếp]: [{\"month\":1,\"so_don_hang\":23503,\"doanh_thu\":23387647697},{\"month\":2,\"so_don_hang\":17019,\"doanh_thu\":14658136450},{\"month\":3,\"so_don_hang\":22440,\"doanh_thu\":17138142419},{\"month\":4,\"so_don_hang\":26408,\"doanh_thu\":15669548080},{\"month\":5,\"so_don_hang\":26282,\"doanh_thu\":15309102244}]'] instructions=None custom_api_key=None custom_model=None custom_api_base=None use_user_rules=True use_memory=True",
+            "db": "<class 'api.graph_db.impl.neo4j.Neo4jGraphDatabase'>"
+        },
+        "steps": [
+            {
+                "node": "init",
+                "updates": {
+                    "start_time": 150786.426403583,
+                    "queries_history": [
+                        "Số lượng đơn hàng và doanh số theo tháng năm nay",
+                        "Số lượng đơn hàng và doanh số theo tháng năm nay",
+                        "Số lượng đơn hàng và doanh số theo tháng năm nay",
+                        "Số lượng đơn hàng và doanh số theo tháng năm nay",
+                        "Số lượng đơn hàng và doanh số theo tháng năm nay"
+                    ],
+                    "instructions": null,
+                    "security_filters": null,
+                    "custom_api_key": null,
+                    "custom_model": null,
+                    "custom_api_base": null,
+                    "db_description": "Based on the provided table schema, the 'dms' database is designed for a **Distribution Management System (DMS)** or **Sales Force Automation (SFA)** platform. It primarily manages and tracks field sales operations, supply chain execution, organizational hierarchies, and performance metrics. \n\nSpecifically, the database domain encompasses:\n- **Organization & Territory Management:** Structuring companies through `organization`, `area`, and `org_access`, mapping geographical or operational boundaries.\n- **Customer & Staff Management:** Maintaining comprehensive customer data (`customer`, `customer_extra`, `customer_history`, `routing_customer`) and internal personnel details (`staff`, `staff_type`, `parent_staff_map`, `staff_customer`, `map_user_shop`, `map_user_staff`).\n- **Sales Planning & Ordering:** Facilitating sales operations via `sale_plan`, `sale_plan_detail`, `sale_order`, `sale_order_detail`, `sale_order_lot`, `sale_order_promotion`, and `sale_order_promo_detail`.\n- **Target Setting & Performance (KPIs):** Tracking employee and organizational goals and achievements through `sellin_target`, `staff_target`, `kpi_implement`, `kpi_weight`, `rpt_kpi_cycle`, `rpt_kpi_day`, and `rpt_kpi_result`.",
+                    "db_url": "postgresql://dms:e95f60631ff435fe01007811@127.0.0.1:5434/dms",
+                    "db_type": "postgresql",
+                    "loader_class": "<class 'abc.ABCMeta'>",
+                    "business_context": "Industry: Retail\nBusiness Goals: dùng cho việc quan lý kinh doanh\nKPI Focus: N/A",
+                    "validation_attempts": 0,
+                    "total_prompt_tokens": 0,
+                    "total_completion_tokens": 0,
+                    "api_calls_count": 0,
+                    "events_to_yield": [
+                        {
+                            "type": "reasoning_step",
+                            "final_response": false,
+                            "message": "Bước 1: Phân tích câu hỏi và thu thập ngữ nghĩa (Semantic GraphRAG)..."
+                        }
+                    ]
+                }
+            },
+            {
+                "node": "retrieve",
+                "updates": {
+                    "graph_context": "### Business Logic (Semantic Layer)\n- **Metric:** so_don_hang | Formula: COUNT(sale_order_id) FROM v_sale_order_clean | Desc: Tổng số lượng đơn đặt hàng hợp lệ đã được duyệt (approved = 1). Luôn ưu tiên dùng bảng v_sale_order_clean. Khi nối sang khách hàng, luôn sử dụng LEFT JOIN từ sale_order sang customer (vì tồn tại ~0,03% customer_id cũ không còn hồ sơ).\n- **Metric:** doanh_thu | Formula:  | Desc: Tổng doanh thu bán hàng. Tính trên tổng giá trị đơn hàng (order_value hoặc amount). Đơn hàng hợp lệ để tính doanh thu: bắt buộc approved = 1 (ưu tiên dùng view v_sale_order_clean hoặc v_revenue_daily thay vì lọc thủ công). KHÔNG tự lọc theo destroy_code — ngữ nghĩa cột này chưa được nghiệp vụ xác nhận (DRAFT — chờ PO).\n- **Metric:** chưa có đơn | Formula: NOT EXISTS (SELECT 1 FROM v_sale_order_clean ...) | Desc: Sử dụng cho các câu hỏi tìm kiếm nhân viên, cửa hàng KHÔNG có đơn hàng, chưa phát sinh đơn trong một khoảng thời gian. Dùng mệnh đề NOT EXISTS kết hợp với bảng v_sale_order_clean. Ví dụ: NOT EXISTS (SELECT 1 FROM v_sale_order_clean so WHERE so.staff_id = st.staff_id AND so.create_date >= CURRENT_DATE).\n- **Dimension:** thời gian | Desc: Quy tắc thời gian: Timezone là Asia/Ho_Chi_Minh. 'Hôm nay' = CURRENT_DATE. Cột thời gian tạo đơn là create_date.\n- **Dimension:** độ tươi dữ liệu | Desc: Thông tin về độ tươi dữ liệu (Data Freshness) để trả lời nếu bị hỏi vì sao số liệu chưa cập nhật: Bảng giao dịch nhận INSERT mới mỗi 12h (00:00/12:00), UPDATE và bảng rpt_* làm mới 01:00 hằng ngày, đồng bộ đầy đủ Chủ nhật 02:00.\n- **Dimension:** báo cáo thống kê | Desc: Câu hỏi thống kê theo tháng/chu kỳ/KPI: ưu tiên các bảng rpt_* (đã pre-aggregate, nhanh 10-100×) thay vì join bảng giao dịch raw.\n- **Dimension:** nhân viên sale | Desc: Nhân viên bán hàng (staff). Ghi chú quan trọng: Sale phụ trách cửa hàng thì join qua bảng staff_customer. Chuỗi quản lý (team/leader) thì join qua bảng parent_staff_map.\n\n### Database Schema\n**Table: sale_order_detail**\nDescription: The table sale_order_detail stores detailed line items for sales orders, including product information, quantities, pricing, discounts, and promotional details.\nColumns:\n  - sale_order_detail_id (numeric): Column sale_order_detail_id of type numeric (NOT NULL) [PK/FK]\n  - sale_order_id (numeric): Column sale_order_id of type numeric (NOT NULL) [PK/FK]\n  - shop_id (numeric): Column shop_id of type numeric [PK/FK]\n  - staff_id (numeric): Column staff_id of type numeric (NOT NULL) [PK/FK]\n  - product_id (numeric): Column product_id of type numeric [PK/FK]\n  - cat_id (numeric): Column cat_id of type numeric [PK/FK]\n  - order_date (timestamp without time zone): Column order_date of type timestamp without time zone [PK/FK]\n  - quantity (numeric): Column quantity of type numeric [PK/FK]\n  - quantity_retail (numeric): Column quantity_retail of type numeric [PK/FK]\n  - quantity_package (numeric): Column quantity_package of type numeric [PK/FK]\n  - is_free_item (integer): Column is_free_item of type integer (Sample values: (0), (1)) [PK/FK]\n  - discount_percent (numeric): Column discount_percent of type numeric [PK/FK]\n  - discount_amount (numeric): Column discount_amount of type numeric [PK/FK]\n  - amount (numeric): Column amount of type numeric [PK/FK]\n  - price_id (numeric): Column price_id of type numeric [PK/FK]\n  - price (numeric): Column price of type numeric [PK/FK]\n  - price_not_vat (numeric): Column price_not_vat of type numeric [PK/FK]\n  - package_price (numeric): Column package_price of type numeric [PK/FK]\n  - package_price_not_vat (numeric): Column package_price_not_vat of type numeric [PK/FK]\n  - vat (numeric): Column vat of type numeric [PK/FK]\n  - total_weight (numeric): Column total_weight of type numeric [PK/FK]\n  - invoice_id (numeric): Column invoice_id of type numeric [PK/FK]\n  - program_type (integer): Column program_type of type integer (Sample values: (0)) [PK/FK]\n  - program_code (text): Column program_code of type text (Sample values: (GTTQ-GENFOODS-240202), (ONTOP-KNPLC-2402028), (GTTQ-YTVLO-2402017)) [PK/FK]\n  - programe_type_code (text): Column programe_type_code of type text (Sample values: (ZV25), (ZV09)) [PK/FK]\n  - promotion_order_number (numeric): Column promotion_order_number of type numeric [PK/FK]\n  - product_group_id (numeric): Column product_group_id of type numeric [PK/FK]\n  - group_level_id (numeric): Column group_level_id of type numeric [PK/FK]\n  - max_quantity_free (bigint): Column max_quantity_free of type bigint (Sample values: (4), (34), (96)) [PK/FK]\n  - paying_order (bigint): Column paying_order of type bigint [PK/FK]\n  - join_program_code (text): Column join_program_code of type text [PK/FK]\n  - create_user (text): Column create_user of type text (Sample values: (1270), (1647), (1716)) [PK/FK]\n  - update_user (text): Column update_user of type text [PK/FK]\n  - create_date (timestamp without time zone): Column create_date of type timestamp without time zone [PK/FK]\n  - update_date (timestamp without time zone): Column update_date of type timestamp without time zone [PK/FK]\n  - convfact (numeric): Column convfact of type numeric [PK/FK]\n  - quantity_pro_bround (numeric): Column quantity_pro_bround of type numeric [PK/FK]\n\n**Table: staff**\nDescription: staff\nColumns:\n  - staff_id (numeric): Column staff_id of type numeric (NOT NULL) [PK/FK]\n  - staff_code (text): Column staff_code of type text (NOT NULL) (Sample values: (1593), (NVNPP_61VLONG), (1318)) [PK/FK]\n  - staff_name (text): Column staff_name of type text (NOT NULL) (Sample values: (NVNPP Hà Giang), (Nguyễn Minh Tiến), (CHECKER_CNG)) [PK/FK]\n  - shop_id (numeric): Column shop_id of type numeric (NOT NULL) [PK/FK]\n  - idno (text): Column idno of type text [PK/FK]\n  - idno_place (text): Column idno_place of type text [PK/FK]\n  - idno_date (timestamp without time zone): Column idno_date of type timestamp without time zone [PK/FK]\n  - email (text): Column email of type text (Sample values: (au.nm@yensaothienviet.vn), (chau.nn@yensaothienviet.vn), (luuquoctien85@gmail.com)) [PK/FK]\n  - area_id (numeric): Column area_id of type numeric [PK/FK]\n  - street (text): Column street of type text [PK/FK]\n  - housenumber (text): Column housenumber of type text (Sample values: (tung), (c), (x)) [PK/FK]\n  - address (text): Column address of type text (Sample values: (Phường 2, Phường 2, Thành phố Tân An), (Phường Long Bình, Phường Long Bình, Quận 9), (Xã Bình Minh, Xã Bình Minh, Huyện Bình Sơn)) [PK/FK]\n  - phone (text): Column phone of type text (Sample values: (0973788097), (0968519902), (0906110781)) [PK/FK]\n  - mobilephone (text): Column mobilephone of type text (Sample values: (0356905020), (0901144770), (0901002771)) [PK/FK]\n  - gender (integer): Column gender of type integer (Sample values: (0), (1)) [PK/FK]\n  - start_working_day (timestamp without time zone): Column start_working_day of type timestamp without time zone [PK/FK]\n  - education (text): Column education of type text [PK/FK]\n  - position (text): Column position of type text [PK/FK]\n  - birthday (timestamp without time zone): Column birthday of type timestamp without time zone [PK/FK]\n  - birthday_place (text): Column birthday_place of type text [PK/FK]\n  - staff_type_id (numeric): Column staff_type_id of type numeric [PK/FK]\n  - status (bigint): Column status of type bigint (Sample values: (0), (1), (-1)) [PK/FK]\n  - last_approved_order (timestamp without time zone): Column last_approved_order of type timestamp without time zone [PK/FK]\n  - last_order (timestamp without time zone): Column last_order of type timestamp without time zone [PK/FK]\n  - create_date (timestamp without time zone): Column create_date of type timestamp without time zone (NOT NULL) [PK/FK]\n  - create_user (text): Column create_user of type text (NOT NULL) (Sample values: (KT_M58KFOOD), (ADMIN), (ADMIN_MDA)) [PK/FK]\n  - update_date (timestamp without time zone): Column update_date of type timestamp without time zone [PK/FK]\n  - update_user (text): Column update_user of type text (Sample values: (21AKHE), (40VINH), (ADMIN_GT)) [PK/FK]\n  - plan (numeric): Column plan of type numeric [PK/FK]\n  - update_plan (timestamp without time zone): Column update_plan of type timestamp without time zone [PK/FK]\n  - sku (bigint): Column sku of type bigint [PK/FK]\n  - imei (text): Column imei of type text (Sample values: (6268271d63093e0979a11b89), (6268271d63093e0979a11b2f), (6268271d63093e0979a11b46)) [PK/FK]\n  - reset_threshold (integer): Column reset_threshold of type integer (Sample values: (1)) [PK/FK]\n  - sale_group (text): Column sale_group of type text (Sample values: (KEY), (KEY-B), (KEY-A)) [PK/FK]\n  - name_text (text): Column name_text of type text (Sample values: (SUP21 CHU SE), (PHAM VAN KHUONG), (HUYNH TAN VIEN)) [PK/FK]\n  - sale_type_code (text): Column sale_type_code of type text (Sample values: (C), (X), (c)) [PK/FK]\n  - password (text): Column password of type text (Sample values: (2f3fe1255ed44632fc43c70c56acf7a4), (6ad2baafec18d432cb1c1433375ccfd6), (4e19413e8f62ad48fbea53e79332364e)) [PK/FK]\n  - num_login_fail (integer): Column num_login_fail of type integer (Sample values: (0), (1), (3)) [PK/FK]\n  - lock_status (integer): Column lock_status of type integer (NOT NULL) (Sample values: (0)) [PK/FK]\n  - is_delete_data (integer): Column is_delete_data of type integer (Sample values: (0), (1)) [PK/FK]\n  - is_get_device_info (integer): Column is_get_device_info of type integer [PK/FK]\n  - check_type (integer): Column check_type of type integer (Sample values: (0), (1)) [PK/FK]\n  - enable_client_log (integer): Column enable_client_log of type integer (Sample values: (0), (1)) [PK/FK]\n  - work_state_code (text): Column work_state_code of type text (Sample values: (vi)) [PK/FK]\n  - organization_id (numeric): Column organization_id of type numeric [PK/FK]\n  - attendance_code (text): Column attendance_code of type text [PK/FK]\n  - create_so (numeric): Column create_so of type numeric [PK/FK]\n\n**Table: rpt_kpi_result**\nDescription: The table rpt_kpi_result stores KPI results, targets, commitments, and performance metrics for objects and staff.\nColumns:\n  - object_type (numeric): Column object_type of type numeric [PK/FK]\n  - parent_id (numeric): Column parent_id of type numeric [PK/FK]\n  - object_id (numeric): Column object_id of type numeric [PK/FK]\n  - object_code (text): Column object_code of type text (NOT NULL) (Sample values: (1247), (1593), (G31NIHOA)) [PK/FK]\n  - object_name (text): Column object_name of type text (NOT NULL) (Sample values: (NVTEST_MIB), (Hồ Vũ Linh), (Lâm Văn Phượng)) [PK/FK]\n  - object_code2 (text): Column object_code2 of type text [PK/FK]\n  - channel (text): Column channel of type text [PK/FK]\n  - amount_commitment (numeric): Column amount_commitment of type numeric [PK/FK]\n  - percent_commitment (numeric): Column percent_commitment of type numeric [PK/FK]\n  - amount_target (numeric): Column amount_target of type numeric [PK/FK]\n  - amount (numeric): Column amount of type numeric [PK/FK]\n  - percent_amount (numeric): Column percent_amount of type numeric [PK/FK]\n  - amount_weight (numeric): Column amount_weight of type numeric [PK/FK]\n  - amount_max_weight (numeric): Column amount_max_weight of type numeric [PK/FK]\n  - amount_max_percent (numeric): Column amount_max_percent of type numeric [PK/FK]\n  - orders_target (bigint): Column orders_target of type bigint (Sample values: (113), (120), (160)) [PK/FK]\n  - orders (bigint): Column orders of type bigint (Sample values: (51), (70), (176)) [PK/FK]\n  - percent_orders (numeric): Column percent_orders of type numeric [PK/FK]\n  - orders_weight (numeric): Column orders_weight of type numeric [PK/FK]\n  - orders_max_weight (numeric): Column orders_max_weight of type numeric [PK/FK]\n  - orders_max_percent (numeric): Column orders_max_percent of type numeric [PK/FK]\n  - aso_target (bigint): Column aso_target of type bigint (Sample values: (70), (113), (120)) [PK/FK]\n  - aso (bigint): Column aso of type bigint (Sample values: (51), (70), (278)) [PK/FK]\n  - percent_aso (numeric): Column percent_aso of type numeric [PK/FK]\n  - aso_weight (numeric): Column aso_weight of type numeric [PK/FK]\n  - aso_max_weight (numeric): Column aso_max_weight of type numeric [PK/FK]\n  - aso_max_percent (numeric): Column aso_max_percent of type numeric [PK/FK]\n  - mhtt_target (bigint): Column mhtt_target of type bigint (Sample values: (3832), (5120), (1752)) [PK/FK]\n  - mhtt (bigint): Column mhtt of type bigint (Sample values: (3934), (790), (1158)) [PK/FK]\n  - percent_mhtt (numeric): Column percent_mhtt of type numeric [PK/FK]\n  - mhtt_weight (numeric): Column mhtt_weight of type numeric [PK/FK]\n  - mhtt_max_weight (numeric): Column mhtt_max_weight of type numeric [PK/FK]\n  - mhtt_max_percent (numeric): Column mhtt_max_percent of type numeric [PK/FK]\n  - kpi (numeric): Column kpi of type numeric [PK/FK]\n  - staff_rank (integer): Column staff_rank of type integer (Sample values: (8), (9), (7)) [PK/FK]\n  - kpi_status (text): Column kpi_status of type text (Sample values: (L), (J)) [PK/FK]\n  - kpi_date (timestamp without time zone): Column kpi_date of type timestamp without time zone [PK/FK]\n  - hrcode (text): Column hrcode of type text (Sample values: (4HN0458), (4DN0662), (4HN0380)) [PK/FK]\n  - hrname (text): Column hrname of type text (Sample values: (Ngô Thanh Tân), (Hồ Vũ Linh), (Lâm Văn Phượng)) [PK/FK]\n  - hrfromdate (timestamp without time zone): Column hrfromdate of type timestamp without time zone [PK/FK]\n  - hrtodate (timestamp without time zone): Column hrtodate of type timestamp without time zone [PK/FK]\n\n**Table: sale_order_lot**\nDescription: The table sale_order_lot stores lot and inventory details associated with sale orders and their items.\nColumns:\n  - sale_order_lot_id (numeric): Column sale_order_lot_id of type numeric (NOT NULL) [PK/FK]\n  - sale_order_id (numeric): Column sale_order_id of type numeric (NOT NULL) [PK/FK]\n  - sale_order_detail_id (numeric): Column sale_order_detail_id of type numeric (NOT NULL) [PK/FK]\n  - shop_id (numeric): Column shop_id of type numeric [PK/FK]\n  - staff_id (numeric): Column staff_id of type numeric [PK/FK]\n  - warehouse_id (numeric): Column warehouse_id of type numeric [PK/FK]\n  - stock_total_id (numeric): Column stock_total_id of type numeric [PK/FK]\n  - product_id (numeric): Column product_id of type numeric [PK/FK]\n  - order_date (timestamp without time zone): Column order_date of type timestamp without time zone [PK/FK]\n  - quantity (numeric): Column quantity of type numeric [PK/FK]\n  - quantity_retail (numeric): Column quantity_retail of type numeric [PK/FK]\n  - quantity_package (numeric): Column quantity_package of type numeric [PK/FK]\n  - price_id (numeric): Column price_id of type numeric [PK/FK]\n  - price (numeric): Column price of type numeric [PK/FK]\n  - package_price (numeric): Column package_price of type numeric [PK/FK]\n  - discount_percent (numeric): Column discount_percent of type numeric [PK/FK]\n  - discount_amount (numeric): Column discount_amount of type numeric [PK/FK]\n  - lot (text): Column lot of type text [PK/FK]\n  - expiry_date (timestamp without time zone): Column expiry_date of type timestamp without time zone [PK/FK]\n  - create_date (timestamp without time zone): Column create_date of type timestamp without time zone [PK/FK]\n  - update_date (timestamp without time zone): Column update_date of type timestamp without time zone [PK/FK]\n  - create_user (text): Column create_user of type text (Sample values: (1046), (1270), (1433)) [PK/FK]\n  - update_user (text): Column update_user of type text [PK/FK]\n\n**Table: rpt_kpi_day**\nDescription: The table rpt_kpi_day stores daily key performance indicator reports for staff and shops.\nColumns:\n  - rpt_kpi_day_id (numeric): Column rpt_kpi_day_id of type numeric (NOT NULL) [PK/FK]\n  - kpi_id (numeric): Column kpi_id of type numeric [PK/FK]\n  - cycle_id (numeric): Column cycle_id of type numeric [PK/FK]\n  - staff_id (numeric): Column staff_id of type numeric [PK/FK]\n  - shop_id (numeric): Column shop_id of type numeric [PK/FK]\n  - plan (numeric): Column plan of type numeric [PK/FK]\n  - done (numeric): Column done of type numeric [PK/FK]\n  - day (timestamp without time zone): Column day of type timestamp without time zone [PK/FK]\n  - done_ir (numeric): Column done_ir of type numeric [PK/FK]\n  - done_or (numeric): Column done_or of type numeric [PK/FK]\n  - percent (numeric): Column percent of type numeric [PK/FK]\n\n**Table: sale_order_promo_detail**\nDescription: The table sale_order_promo_detail stores promotional discount details and program information associated with sale orders.\nColumns:\n  - sale_order_promo_detail_id (numeric): Column sale_order_promo_detail_id of type numeric (NOT NULL) [PK/FK]\n  - sale_order_id (numeric): Column sale_order_id of type numeric [PK/FK]\n  - sale_order_detail_id (numeric): Column sale_order_detail_id of type numeric [PK/FK]\n  - shop_id (numeric): Column shop_id of type numeric [PK/FK]\n  - staff_id (numeric): Column staff_id of type numeric [PK/FK]\n  - order_date (timestamp without time zone): Column order_date of type timestamp without time zone [PK/FK]\n  - program_type (integer): Column program_type of type integer (Sample values: (0)) [PK/FK]\n  - program_code (text): Column program_code of type text (Sample values: (ECTQ-JUNHP-2403244), (ECTQ-KNPLC-2403059), (ECTQ-JUNLO-2403294)) [PK/FK]\n  - programe_type_code (text): Column programe_type_code of type text (Sample values: (ZV08), (ZV19)) [PK/FK]\n  - discount_percent (numeric): Column discount_percent of type numeric [PK/FK]\n  - discount_amount (numeric): Column discount_amount of type numeric [PK/FK]\n  - product_group_id (numeric): Column product_group_id of type numeric [PK/FK]\n  - group_level_id (numeric): Column group_level_id of type numeric [PK/FK]\n  - max_amount_free (bigint): Column max_amount_free of type bigint (Sample values: (29454), (3707), (37037)) [PK/FK]\n  - is_owner (integer): Column is_owner of type integer (Sample values: (0), (1), (2)) [PK/FK]\n  - is_default_dis_type (integer): Column is_default_dis_type of type integer (Sample values: (0), (1)) [PK/FK]\n\n**Table: sale_order**\nDescription: The table sale_order stores information about customer sale orders, including order details, status, pricing, and delivery information.\nColumns:\n  - sale_order_id (numeric): Column sale_order_id of type numeric (NOT NULL) [PK/FK]\n  - shop_id (numeric): Column shop_id of type numeric [PK/FK]\n  - shop_code (text): Column shop_code of type text (Sample values: (G31NIHOA), (G11PTHIE), (G56HGTRA)) [PK/FK]\n  - staff_id (numeric): Column staff_id of type numeric [PK/FK]\n  - routing_id (numeric): Column routing_id of type numeric [PK/FK]\n  - customer_id (numeric): Column customer_id of type numeric [PK/FK]\n  - order_number (text): Column order_number of type text (Sample values: (IN046975), (IN011675), (IN025730)) [PK/FK]\n  - order_date (timestamp without time zone): Column order_date of type timestamp without time zone [PK/FK]\n  - order_type (text): Column order_type of type text (Sample values: (IN), (CM)) [PK/FK]\n  - order_source (integer): Column order_source of type integer (Sample values: (1), (2)) [PK/FK]\n  - approved (integer): Column approved of type integer (Sample values: (0), (1), (-1)) [PK/FK]\n  - type (integer): Column type of type integer (Sample values: (0), (1), (2)) [PK/FK]\n  - from_sale_order_id (numeric): Column from_sale_order_id of type numeric [PK/FK]\n  - ref_order_number (text): Column ref_order_number of type text (Sample values: (M2817964), (M2817757), (M2817769)) [PK/FK]\n  - from_po_customer_id (numeric): Column from_po_customer_id of type numeric [PK/FK]\n  - delivery_id (numeric): Column delivery_id of type numeric [PK/FK]\n  - delivery_date (timestamp without time zone): Column delivery_date of type timestamp without time zone [PK/FK]\n  - cashier_id (numeric): Column cashier_id of type numeric [PK/FK]\n  - car_id (numeric): Column car_id of type numeric [PK/FK]\n  - amount (numeric): Column amount of type numeric [PK/FK]\n  - discount (numeric): Column discount of type numeric [PK/FK]\n  - total (numeric): Column total of type numeric [PK/FK]\n  - description (text): Column description of type text (Sample values: (trùng đơn), (38TAN), (hết hàng)) [PK/FK]\n  - total_weight (numeric): Column total_weight of type numeric [PK/FK]\n  - priority (numeric): Column priority of type numeric [PK/FK]\n  - is_visit_plan (integer): Column is_visit_plan of type integer (Sample values: (0), (1)) [PK/FK]\n  - destroy_code (text): Column destroy_code of type text (Sample values: (0), (1), (GLICO)) [PK/FK]\n  - total_detail (numeric): Column total_detail of type numeric [PK/FK]\n  - approved_van (integer): Column approved_van of type integer (Sample values: (0), (1), (4)) [PK/FK]\n  - approved_date (timestamp without time zone): Column approved_date of type timestamp without time zone [PK/FK]\n  - approved_step (integer): Column approved_step of type integer (Sample values: (1), (3)) [PK/FK]\n  - account_date (timestamp without time zone): Column account_date of type timestamp without time zone [PK/FK]\n  - time_print (timestamp without time zone): Column time_print of type timestamp without time zone [PK/FK]\n  - print_batch (bigint): Column print_batch of type bigint (Sample values: (4), (10), (6)) [PK/FK]\n  - time_print_711 (timestamp without time zone): Column time_print_711 of type timestamp without time zone [PK/FK]\n  - time_print_712 (timestamp without time zone): Column time_print_712 of type timestamp without time zone [PK/FK]\n  - time_print_713 (timestamp without time zone): Column time_print_713 of type timestamp without time zone [PK/FK]\n  - time_print_7114 (timestamp without time zone): Column time_print_7114 of type timestamp without time zone [PK/FK]\n  - num_detail (numeric): Column num_detail of type numeric [PK/FK]\n  - is_primary (integer): Column is_primary of type integer [PK/FK]\n  - parent_cp_sale_order_id (numeric): Column parent_cp_sale_order_id of type numeric [PK/FK]\n  - create_user (text): Column create_user of type text (Sample values: (1046), (1270), (1560)) [PK/FK]\n  - update_user (text): Column update_user of type text (Sample values: (21AKHE), (37DTRONG), (65HOBIH)) [PK/FK]\n  - create_date (timestamp without time zone): Column create_date of type timestamp without time zone [PK/FK]\n  - update_date (timestamp without time zone): Column update_date of type timestamp without time zone [PK/FK]\n  - quantity (numeric): Column quantity of type numeric [PK/FK]\n  - stock_date (timestamp without time zone): Column stock_date of type timestamp without time zone [PK/FK]\n  - cycle_id (integer): Column cycle_id of type integer (Sample values: (20260505)) [PK/FK]\n  - is_reward_ks (integer): Column is_reward_ks of type integer (Sample values: (0)) [PK/FK]\n  - note (text): Column note of type text (Sample values: (.), (..), (abc)) [PK/FK]\n  - sale_order_extra_id (numeric): Column sale_order_extra_id of type numeric [PK/FK]\n\n**Table: staff_target**\nDescription: The table staff_target stores performance targets and sales goals for staff members across various shops.\nColumns:\n  - staff_id (numeric): Column staff_id of type numeric [PK/FK]\n  - shop_id (numeric): Column shop_id of type numeric [PK/FK]\n  - shop_code (text): Column shop_code of type text (Sample values: (G23HANAM), (G38DUHOA), (G67BAKAN)) [PK/FK]\n  - staff_code (text): Column staff_code of type text (Sample values: (GS_37DLAT), (GS_35LSON), (GS1_58MTHCM)) [PK/FK]\n  - staff_name (text): Column staff_name of type text (Sample values: (Lê Lên), (Phạm Thị Kim), (Nguyễn Công Tài)) [PK/FK]\n  - from_date (timestamp without time zone): Column from_date of type timestamp without time zone [PK/FK]\n  - to_date (timestamp without time zone): Column to_date of type timestamp without time zone [PK/FK]\n  - doanhso (numeric): Column doanhso of type numeric [PK/FK]\n  - aso (numeric): Column aso of type numeric [PK/FK]\n  - donhang (numeric): Column donhang of type numeric [PK/FK]\n  - mhtt (numeric): Column mhtt of type numeric [PK/FK]\n  - shop_code_report (text): Column shop_code_report of type text (Sample values: (15LCHIEU1), (Ea Kar & Buôn Hồ), (Bắc Giang & Bắc Ninh)) [PK/FK]\n\n**Table: sellin_target**\nDescription: The table sellin_target stores sell-in target plans and related metadata for shops.\nColumns:\n  - shop_id (numeric): Column shop_id of type numeric [PK/FK]\n  - run_date (timestamp without time zone): Column run_date of type timestamp without time zone [PK/FK]\n  - plan (numeric): Column plan of type numeric [PK/FK]\n  - create_date (timestamp without time zone): Column create_date of type timestamp without time zone [PK/FK]\n  - create_user (text): Column create_user of type text (Sample values: (ADMIN_CTKM), (TUNG)) [PK/FK]\n  - update_date (timestamp without time zone): Column update_date of type timestamp without time zone [PK/FK]\n  - update_user (text): Column update_user of type text (Sample values: (ADMIN_CTKM), (TUNG)) [PK/FK]\n  - status (numeric): Column status of type numeric [PK/FK]\n  - sellin_target_id (numeric): Column sellin_target_id of type numeric [PK/FK]\n\n**Table: sale_order_promotion**\nDescription: The table sale_order_promotion stores details about promotions applied to sale orders.\nColumns:\n  - sale_order_promotion_id (numeric): Column sale_order_promotion_id of type numeric (NOT NULL) [PK/FK]\n  - sale_order_id (numeric): Column sale_order_id of type numeric (NOT NULL) [PK/FK]\n  - shop_id (numeric): Column shop_id of type numeric [PK/FK]\n  - staff_id (numeric): Column staff_id of type numeric [PK/FK]\n  - order_date (timestamp without time zone): Column order_date of type timestamp without time zone [PK/FK]\n  - promotion_program_id (numeric): Column promotion_program_id of type numeric [PK/FK]\n  - promotion_program_code (text): Column promotion_program_code of type text (Sample values: (TBAY-GENTU-BOTUVOIT5), (TBAY-KECOC-GLICOT5), (TBAY-THGEN-BOSACHET5)) [PK/FK]\n  - product_group_id (numeric): Column product_group_id of type numeric [PK/FK]\n  - group_level_id (numeric): Column group_level_id of type numeric [PK/FK]\n  - promotion_level (numeric): Column promotion_level of type numeric [PK/FK]\n  - quantity_received (numeric): Column quantity_received of type numeric [PK/FK]\n  - quantity_received_max (numeric): Column quantity_received_max of type numeric [PK/FK]\n  - create_date (timestamp without time zone): Column create_date of type timestamp without time zone [PK/FK]\n  - update_date (timestamp without time zone): Column update_date of type timestamp without time zone [PK/FK]\n  - create_user (text): Column create_user of type text (Sample values: (1247), (1593), (1145)) [PK/FK]\n  - update_user (text): Column update_user of type text [PK/FK]\n  - promotion_detail (text): Column promotion_detail of type text (Sample values: ((111: 252.0);(112: );(121: 0.0);(122: );(131: 0.0);(132: );(211: 549.0);(212: );(221: 0.0);(222: );(231: 0.0);(232: );(311: 0.0);(312: );(321: 0.0);(322: );(331: 0.0);(332: )), ((111: 193.0);(112: );(121: 193.0);(122: );(131: 193.0);(132: );(211: 193.0);(212: );(221: 193.0);(222: );(231: 193.0);(232: );(311: 0.0);(312: );(321: 0.0);(322: );(331: 0.0);(332: )), ((111: 165.0);(112: );(121: 165.0);(122: );(131: 165.0);(132: );(211: 0.0);(212: );(221: 0.0);(222: );(231: 0.0);(232: );(311: 152778.45);(312: );(321: 152778.45);(322: );(331: 152778.45);(332: ))) [PK/FK]\n  - exceed_object (integer): Column exceed_object of type integer (Sample values: (3), (0)) [PK/FK]\n  - exceed_unit (integer): Column exceed_unit of type integer (Sample values: (0), (1)) [PK/FK]\n  - amount_received (numeric): Column amount_received of type numeric [PK/FK]\n  - num_received (numeric): Column num_received of type numeric [PK/FK]\n  - amount_received_max (numeric): Column amount_received_max of type numeric [PK/FK]\n  - num_received_max (numeric): Column num_received_max of type numeric [PK/FK]\n\n**Table: staff_customer**\nDescription: The table staff_customer stores associations and visit metrics between staff members and customers.\nColumns:\n  - staff_customer_id (numeric): Column staff_customer_id of type numeric (NOT NULL) [PK/FK]\n  - staff_id (numeric): Column staff_id of type numeric [PK/FK]\n  - customer_id (numeric): Column customer_id of type numeric [PK/FK]\n  - last_order (timestamp without time zone): Column last_order of type timestamp without time zone [PK/FK]\n  - last_approve_order (timestamp without time zone): Column last_approve_order of type timestamp without time zone [PK/FK]\n  - day_plan (numeric): Column day_plan of type numeric [PK/FK]\n  - day_plan_date (timestamp without time zone): Column day_plan_date of type timestamp without time zone [PK/FK]\n  - day_plan_avg (numeric): Column day_plan_avg of type numeric [PK/FK]\n  - day_plan_avg_date (timestamp without time zone): Column day_plan_avg_date of type timestamp without time zone [PK/FK]\n  - exception_order_date (timestamp without time zone): Column exception_order_date of type timestamp without time zone [PK/FK]\n  - total_visit (integer): Column total_visit of type integer [PK/FK]\n  - remaining_visit (integer): Column remaining_visit of type integer [PK/FK]\n  - shop_id (numeric): Column shop_id of type numeric [PK/FK]\n",
+                    "events_to_yield": [
+                        {
+                            "type": "reasoning_step",
+                            "final_response": false,
+                            "message": "Bước 2: Phân tích Cấu trúc Đồ thị (Graph Lineage)..."
+                        },
+                        {
+                            "type": "reasoning_graph",
+                            "final_response": false,
+                            "data": {
+                                "nodes": [
+                                    {
+                                        "id": "metric_so_don_hang",
+                                        "label": "Metric",
+                                        "name": "so_don_hang",
+                                        "properties": {
+                                            "formula": "COUNT(sale_order_id) FROM v_sale_order_clean"
+                                        }
+                                    },
+                                    {
+                                        "id": "metric_doanh_thu",
+                                        "label": "Metric",
+                                        "name": "doanh_thu",
+                                        "properties": {
+                                            "formula": ""
+                                        }
+                                    },
+                                    {
+                                        "id": "metric_chưa có đơn",
+                                        "label": "Metric",
+                                        "name": "chưa có đơn",
+                                        "properties": {
+                                            "formula": "NOT EXISTS (SELECT 1 FROM v_sale_order_clean ...)"
+                                        }
+                                    },
+                                    {
+                                        "id": "dimension_thời gian",
+                                        "label": "Dimension",
+                                        "name": "thời gian",
+                                        "properties": {}
+                                    },
+                                    {
+                                        "id": "dimension_độ tươi dữ liệu",
+                                        "label": "Dimension",
+                                        "name": "độ tươi dữ liệu",
+                                        "properties": {}
+                                    },
+                                    {
+                                        "id": "dimension_báo cáo thống kê",
+                                        "label": "Dimension",
+                                        "name": "báo cáo thống kê",
+                                        "properties": {}
+                                    },
+                                    {
+                                        "id": "dimension_nhân viên sale",
+                                        "label": "Dimension",
+                                        "name": "nhân viên sale",
+                                        "properties": {}
+                                    },
+                                    {
+                                        "id": "table_sale_order_detail",
+                                        "label": "Table",
+                                        "name": "sale_order_detail",
+                                        "properties": {
+                                            "description": "The table sale_order_detail stores detailed line items for sales orders, including product information, quantities, pricing, discounts, and promotional details."
+                                        }
+                                    },
+                                    {
+                                        "id": "table_staff",
+                                        "label": "Table",
+                                        "name": "staff",
+                                        "properties": {
+                                            "description": "staff"
+                                        }
+                                    },
+                                    {
+                                        "id": "table_rpt_kpi_result",
+                                        "label": "Table",
+                                        "name": "rpt_kpi_result",
+                                        "properties": {
+                                            "description": "The table rpt_kpi_result stores KPI results, targets, commitments, and performance metrics for objects and staff."
+                                        }
+                                    },
+                                    {
+                                        "id": "table_sale_order_lot",
+                                        "label": "Table",
+                                        "name": "sale_order_lot",
+                                        "properties": {
+                                            "description": "The table sale_order_lot stores lot and inventory details associated with sale orders and their items."
+                                        }
+                                    },
+                                    {
+                                        "id": "table_rpt_kpi_day",
+                                        "label": "Table",
+                                        "name": "rpt_kpi_day",
+                                        "properties": {
+                                            "description": "The table rpt_kpi_day stores daily key performance indicator reports for staff and shops."
+                                        }
+                                    },
+                                    {
+                                        "id": "table_sale_order_promo_detail",
+                                        "label": "Table",
+                                        "name": "sale_order_promo_detail",
+                                        "properties": {
+                                            "description": "The table sale_order_promo_detail stores promotional discount details and program information associated with sale orders."
+                                        }
+                                    },
+                                    {
+                                        "id": "table_sale_order",
+                                        "label": "Table",
+                                        "name": "sale_order",
+                                        "properties": {
+                                            "description": "The table sale_order stores information about customer sale orders, including order details, status, pricing, and delivery information."
+                                        }
+                                    },
+                                    {
+                                        "id": "table_staff_target",
+                                        "label": "Table",
+                                        "name": "staff_target",
+                                        "properties": {
+                                            "description": "The table staff_target stores performance targets and sales goals for staff members across various shops."
+                                        }
+                                    },
+                                    {
+                                        "id": "table_sellin_target",
+                                        "label": "Table",
+                                        "name": "sellin_target",
+                                        "properties": {
+                                            "description": "The table sellin_target stores sell-in target plans and related metadata for shops."
+                                        }
+                                    },
+                                    {
+                                        "id": "table_sale_order_promotion",
+                                        "label": "Table",
+                                        "name": "sale_order_promotion",
+                                        "properties": {
+                                            "description": "The table sale_order_promotion stores details about promotions applied to sale orders."
+                                        }
+                                    },
+                                    {
+                                        "id": "table_staff_customer",
+                                        "label": "Table",
+                                        "name": "staff_customer",
+                                        "properties": {
+                                            "description": "The table staff_customer stores associations and visit metrics between staff members and customers."
+                                        }
+                                    },
+                                    {
+                                        "id": "question",
+                                        "label": "Question",
+                                        "name": "Số lượng đơn hàng và doanh số theo tháng năm nay",
+                                        "properties": {}
+                                    }
+                                ],
+                                "edges": [
+                                    {
+                                        "source": "question",
+                                        "target": "metric_so_don_hang",
+                                        "label": "SIMILAR_TO"
+                                    },
+                                    {
+                                        "source": "question",
+                                        "target": "metric_doanh_thu",
+                                        "label": "SIMILAR_TO"
+                                    },
+                                    {
+                                        "source": "question",
+                                        "target": "metric_chưa có đơn",
+                                        "label": "SIMILAR_TO"
+                                    },
+                                    {
+                                        "source": "question",
+                                        "target": "dimension_thời gian",
+                                        "label": "SIMILAR_TO"
+                                    },
+                                    {
+                                        "source": "question",
+                                        "target": "dimension_độ tươi dữ liệu",
+                                        "label": "SIMILAR_TO"
+                                    },
+                                    {
+                                        "source": "question",
+                                        "target": "dimension_báo cáo thống kê",
+                                        "label": "SIMILAR_TO"
+                                    },
+                                    {
+                                        "source": "question",
+                                        "target": "dimension_nhân viên sale",
+                                        "label": "SIMILAR_TO"
+                                    },
+                                    {
+                                        "source": "question",
+                                        "target": "table_sale_order_detail",
+                                        "label": "SIMILAR_TO"
+                                    },
+                                    {
+                                        "source": "question",
+                                        "target": "table_staff",
+                                        "label": "SIMILAR_TO"
+                                    },
+                                    {
+                                        "source": "question",
+                                        "target": "table_rpt_kpi_result",
+                                        "label": "SIMILAR_TO"
+                                    },
+                                    {
+                                        "source": "question",
+                                        "target": "table_sale_order_lot",
+                                        "label": "SIMILAR_TO"
+                                    },
+                                    {
+                                        "source": "question",
+                                        "target": "table_rpt_kpi_day",
+                                        "label": "SIMILAR_TO"
+                                    },
+                                    {
+                                        "source": "question",
+                                        "target": "table_sale_order_promo_detail",
+                                        "label": "SIMILAR_TO"
+                                    },
+                                    {
+                                        "source": "question",
+                                        "target": "table_sale_order",
+                                        "label": "SIMILAR_TO"
+                                    },
+                                    {
+                                        "source": "question",
+                                        "target": "table_staff_target",
+                                        "label": "SIMILAR_TO"
+                                    },
+                                    {
+                                        "source": "question",
+                                        "target": "table_sellin_target",
+                                        "label": "SIMILAR_TO"
+                                    },
+                                    {
+                                        "source": "question",
+                                        "target": "table_sale_order_promotion",
+                                        "label": "SIMILAR_TO"
+                                    },
+                                    {
+                                        "source": "question",
+                                        "target": "table_staff_customer",
+                                        "label": "SIMILAR_TO"
+                                    }
+                                ]
+                            }
+                        },
+                        {
+                            "type": "reasoning_step",
+                            "final_response": false,
+                            "message": "Bước 3: Sinh SQL dựa trên Ngữ nghĩa Kinh doanh..."
+                        }
+                    ]
+                }
+            },
+            {
+                "node": "classify_intent",
+                "updates": {
+                    "intent": "data_query",
+                    "direct_reply": null,
+                    "playbook": null,
+                    "events_to_yield": [
+                        {
+                            "type": "reasoning_step",
+                            "final_response": false,
+                            "message": "Bước 2: Câu hỏi thuộc phạm vi dữ liệu — sinh SQL..."
+                        }
+                    ],
+                    "total_prompt_tokens": 1552,
+                    "total_completion_tokens": 12,
+                    "api_calls_count": 1
+                }
+            },
+            {
+                "node": "generate_sql",
+                "updates": {
+                    "sql_query": "SELECT\n  EXTRACT(MONTH FROM create_date) AS month,\n  COUNT(sale_order_id) AS so_don_hang,\n  SUM(amount) AS doanh_thu\nFROM v_sale_order_clean\nWHERE\n  EXTRACT(YEAR FROM create_date) = EXTRACT(YEAR FROM CURRENT_DATE)\nGROUP BY\n  EXTRACT(MONTH FROM create_date)\nORDER BY\n  EXTRACT(MONTH FROM create_date);",
+                    "events_to_yield": [
+                        {
+                            "type": "sql_query",
+                            "data": "SELECT\n  EXTRACT(MONTH FROM create_date) AS month,\n  COUNT(sale_order_id) AS so_don_hang,\n  SUM(amount) AS doanh_thu\nFROM v_sale_order_clean\nWHERE\n  EXTRACT(YEAR FROM create_date) = EXTRACT(YEAR FROM CURRENT_DATE)\nGROUP BY\n  EXTRACT(MONTH FROM create_date)\nORDER BY\n  EXTRACT(MONTH FROM create_date);",
+                            "final_response": false
+                        }
+                    ],
+                    "total_prompt_tokens": 13440,
+                    "total_completion_tokens": 114,
+                    "api_calls_count": 2
+                }
+            },
+            {
+                "node": "validate_sql",
+                "updates": {
+                    "validation_error": null,
+                    "validation_attempts": 1,
+                    "is_destructive": false,
+                    "events_to_yield": [
+                        {
+                            "type": "reasoning_step",
+                            "final_response": false,
+                            "message": "Bước 3: Thực thi truy vấn SQL hợp lệ..."
+                        }
+                    ]
+                }
+            },
+            {
+                "node": "execute",
+                "updates": {
+                    "query_results": [
+                        {
+                            "month": 1.0,
+                            "so_don_hang": 23503,
+                            "doanh_thu": 23387647697.0
+                        },
+                        {
+                            "month": 2.0,
+                            "so_don_hang": 17019,
+                            "doanh_thu": 14658136450.0
+                        },
+                        {
+                            "month": 3.0,
+                            "so_don_hang": 22440,
+                            "doanh_thu": 17138142419.0
+                        },
+                        {
+                            "month": 4.0,
+                            "so_don_hang": 26408,
+                            "doanh_thu": 15669548080.0
+                        },
+                        {
+                            "month": 5.0,
+                            "so_don_hang": 26282,
+                            "doanh_thu": 15309102244.0
+                        },
+                        {
+                            "month": 6.0,
+                            "so_don_hang": 22879,
+                            "doanh_thu": 14973934661.0
+                        },
+                        {
+                            "month": 7.0,
+                            "so_don_hang": 22451,
+                            "doanh_thu": 13582081634.0
+                        },
+                        {
+                            "month": 8.0,
+                            "so_don_hang": 6297,
+                            "doanh_thu": 3646118997.0
+                        }
+                    ],
+                    "execution_error": null,
+                    "events_to_yield": [
+                        {
+                            "type": "query_result",
+                            "data": [
+                                {
+                                    "month": 1.0,
+                                    "so_don_hang": 23503,
+                                    "doanh_thu": 23387647697.0
+                                },
+                                {
+                                    "month": 2.0,
+                                    "so_don_hang": 17019,
+                                    "doanh_thu": 14658136450.0
+                                },
+                                {
+                                    "month": 3.0,
+                                    "so_don_hang": 22440,
+                                    "doanh_thu": 17138142419.0
+                                },
+                                {
+                                    "month": 4.0,
+                                    "so_don_hang": 26408,
+                                    "doanh_thu": 15669548080.0
+                                },
+                                {
+                                    "month": 5.0,
+                                    "so_don_hang": 26282,
+                                    "doanh_thu": 15309102244.0
+                                },
+                                {
+                                    "month": 6.0,
+                                    "so_don_hang": 22879,
+                                    "doanh_thu": 14973934661.0
+                                },
+                                {
+                                    "month": 7.0,
+                                    "so_don_hang": 22451,
+                                    "doanh_thu": 13582081634.0
+                                },
+                                {
+                                    "month": 8.0,
+                                    "so_don_hang": 6297,
+                                    "doanh_thu": 3646118997.0
+                                }
+                            ],
+                            "final_response": false
+                        }
+                    ],
+                    "sql_query": "SELECT EXTRACT(MONTH FROM create_date) AS month, COUNT(sale_order_id) AS so_don_hang, SUM(amount) AS doanh_thu FROM v_sale_order_clean WHERE EXTRACT(YEAR FROM create_date) = EXTRACT(YEAR FROM CURRENT_DATE) GROUP BY EXTRACT(MONTH FROM create_date) ORDER BY EXTRACT(MONTH FROM create_date) LIMIT 500"
+                }
+            },
+            {
+                "node": "insight_chart",
+                "updates": {
+                    "insight": "### 1. Tóm tắt điều hành\n\nTrong năm nay, tổng số lượng đơn hàng đạt 167.379 với tổng doanh thu là 118,36 tỷ VNĐ. Tháng 1 ghi nhận mức doanh thu cao nhất (23,39 tỷ VNĐ) và số lượng đơn hàng cao nhất (23.503 đơn), trong khi tháng 8 có mức doanh thu và số lượng đơn hàng thấp nhất (3,65 tỷ VNĐ và 6.297 đơn).\n\n### 2. Thực trạng & Phân tích chi tiết số liệu\n\n*   **Tổng quan:**\n    *   Tổng số đơn hàng trong năm: 167.379 đơn.\n    *   Tổng doanh thu trong năm: 118.357.562.582 VNĐ (khoảng 118,36 tỷ VNĐ).\n    *   Doanh thu trung bình mỗi đơn hàng: 707.135 VNĐ.\n\n*   **Phân tích theo tháng:**\n    *   **Tháng 1:** Dẫn đầu về cả số lượng đơn hàng (23.503 đơn) và doanh thu (23.387.647.697 VNĐ).\n    *   **Tháng 4 và Tháng 5:** Duy trì số lượng đơn hàng ở mức cao (lần lượt 26.408 và 26.282 đơn), nhưng doanh thu có xu hướng giảm so với tháng 1 (15.669.548.080 VNĐ và 15.309.102.244 VNĐ).\n    *   **Tháng 8:** Ghi nhận mức thấp nhất về cả số lượng đơn hàng (6.297 đơn) và doanh thu (3.646.118.997 VNĐ), cho thấy sự sụt giảm đáng kể so với các tháng trước đó.\n\n### 3. Đánh giá tác động & Bối cảnh kinh doanh\n\n*   **Xu hướng giảm doanh thu từ Quý 2:** Mặc dù số lượng đơn hàng trong tháng 4 và 5 vẫn cao, doanh thu lại không tăng tương ứng, thậm chí có xu hướng giảm dần từ tháng 1. Điều này cho thấy giá trị trung bình mỗi đơn hàng đang có dấu hiệu giảm, có thể do thay đổi trong cơ cấu sản phẩm bán ra, chính sách giá, hoặc hành vi mua sắm của khách hàng.\n*   **Sụt giảm mạnh trong Tháng 8:** Sự sụt giảm đột ngột và đáng kể về cả số lượng đơn hàng và doanh thu trong tháng 8 cần được xem xét kỹ lưỡng. Đây có thể là dấu hiệu của các yếu tố mùa vụ, sự kiện thị trường bất lợi, hoặc vấn đề nội bộ trong hoạt động kinh doanh (ví dụ: gián đoạn chuỗi cung ứng, vấn đề vận hành, hoặc chiến dịch marketing không hiệu quả).\n*   **Cơ hội tối ưu hóa:** Tháng 1 cho thấy tiềm năng doanh thu cao nhất, có thể liên quan đến các dịp lễ, tết hoặc chiến dịch bán hàng đầu năm. Việc phân tích sâu hơn các yếu tố thành công của tháng này có thể giúp định hình chiến lược cho các giai đoạn khác trong năm.\n\n### 4. Đề xuất giải pháp & Kế hoạch hành động\n\n1.  **Giải pháp thực thi ngắn hạn:**\n    *   **Phân tích nguyên nhân sụt giảm Tháng 8:** Khẩn trương điều tra nguyên nhân cụ thể dẫn đến sự sụt giảm mạnh về đơn hàng và doanh thu trong tháng 8. Cần xem xét các yếu tố như: tình hình kinh tế vĩ mô, hoạt động của đối thủ cạnh tranh, các chiến dịch marketing/khuyến mãi trong tháng, hoặc các vấn đề vận hành nội bộ.\n    *   **Đánh giá giá trị đơn hàng trung bình:** Phân tích chi tiết giá trị trung bình mỗi đơn hàng qua từng tháng để xác định các sản phẩm/dịch vụ có doanh số giảm và điều chỉnh chiến lược giá hoặc danh mục sản phẩm.\n\n2.  **Giải pháp tối ưu trung - dài hạn:**\n    *   **Tối ưu hóa chiến lược theo mùa:** Dựa trên dữ liệu tháng 1, nghiên cứu các yếu tố thành công (chiến dịch marketing, sản phẩm chủ lực, chính sách giá) để xây dựng kế hoạch kinh doanh và marketing hiệu quả hơn cho các giai đoạn cao điểm tương tự trong tương lai.\n    *   **Nghiên cứu hành vi khách hàng:** Thực hiện khảo sát hoặc phân tích dữ liệu khách hàng để hiểu rõ hơn về sự thay đổi trong hành vi mua sắm, đặc biệt là xu hướng giảm giá trị đơn hàng trung bình. Từ đó, phát triển các gói sản phẩm, chương trình khuyến mãi phù hợp để kích thích doanh số.\n    *   **Kiểm soát và cải thiện hiệu suất vận hành:** Rà soát quy trình vận hành, chuỗi cung ứng để đảm bảo không có sự gián đoạn ảnh hưởng đến khả năng xử lý đơn hàng và giao nhận, đặc biệt trong các tháng có biến động lớn.",
+                    "chart_config": {
+                        "should_visualize": true,
+                        "chart_type": "combo",
+                        "option": {
+                            "color": [
+                                "#2563eb",
+                                "#10b981",
+                                "#f59e0b",
+                                "#8b5cf6",
+                                "#ec4899",
+                                "#06b6d4"
+                            ],
+                            "tooltip": {
+                                "trigger": "axis",
+                                "axisPointer": {
+                                    "type": "shadow"
+                                }
+                            },
+                            "legend": {
+                                "data": [
+                                    "Số lượng đơn hàng",
+                                    "Doanh thu"
+                                ],
+                                "top": 0,
+                                "bottom": "auto"
+                            },
+                            "grid": {
+                                "left": "3%",
+                                "right": "4%",
+                                "bottom": "3%",
+                                "containLabel": true,
+                                "top": 40
+                            },
+                            "xAxis": {
+                                "type": "category",
+                                "axisLabel": {
+                                    "formatter": "Tháng {value}"
+                                }
+                            },
+                            "yAxis": [
+                                {
+                                    "type": "value",
+                                    "name": "Số lượng đơn hàng",
+                                    "axisLabel": {
+                                        "formatter": "{value}"
+                                    }
+                                },
+                                {
+                                    "type": "value",
+                                    "name": "Doanh thu",
+                                    "axisLabel": {
+                                        "formatter": "{value}"
+                                    }
+                                }
+                            ],
+                            "series": [
+                                {
+                                    "name": "Số lượng đơn hàng",
+                                    "type": "bar",
+                                    "encode": {
+                                        "x": "month",
+                                        "y": "so_don_hang"
+                                    },
+                                    "yAxisIndex": 0
+                                },
+                                {
+                                    "name": "Doanh thu",
+                                    "type": "line",
+                                    "encode": {
+                                        "x": "month",
+                                        "y": "doanh_thu"
+                                    },
+                                    "yAxisIndex": 1
+                                }
+                            ],
+                            "dataset": {
+                                "source": [
+                                    [
+                                        "month",
+                                        "so_don_hang",
+                                        "doanh_thu"
+                                    ],
+                                    [
+                                        1.0,
+                                        23503,
+                                        23387647697.0
+                                    ],
+                                    [
+                                        2.0,
+                                        17019,
+                                        14658136450.0
+                                    ],
+                                    [
+                                        3.0,
+                                        22440,
+                                        17138142419.0
+                                    ],
+                                    [
+                                        4.0,
+                                        26408,
+                                        15669548080.0
+                                    ],
+                                    [
+                                        5.0,
+                                        26282,
+                                        15309102244.0
+                                    ],
+                                    [
+                                        6.0,
+                                        22879,
+                                        14973934661.0
+                                    ],
+                                    [
+                                        7.0,
+                                        22451,
+                                        13582081634.0
+                                    ],
+                                    [
+                                        8.0,
+                                        6297,
+                                        3646118997.0
+                                    ]
+                                ]
+                            }
+                        },
+                        "usage": {
+                            "prompt_tokens": 1156,
+                            "completion_tokens": 492,
+                            "total_tokens": 1648
+                        }
+                    },
+                    "events_to_yield": [
+                        {
+                            "type": "reasoning_step",
+                            "final_response": false,
+                            "message": "Bước 4.1: Chuyên gia Phân tích Kinh doanh trích xuất Insights..."
+                        },
+                        {
+                            "type": "reasoning_step",
+                            "final_response": false,
+                            "message": "Bước 4.2: Chuyên gia Đồ họa thiết kế Biểu đồ trực quan..."
+                        },
+                        {
+                            "type": "chart_config",
+                            "data": {
+                                "color": [
+                                    "#2563eb",
+                                    "#10b981",
+                                    "#f59e0b",
+                                    "#8b5cf6",
+                                    "#ec4899",
+                                    "#06b6d4"
+                                ],
+                                "tooltip": {
+                                    "trigger": "axis",
+                                    "axisPointer": {
+                                        "type": "shadow"
+                                    }
+                                },
+                                "legend": {
+                                    "data": [
+                                        "Số lượng đơn hàng",
+                                        "Doanh thu"
+                                    ],
+                                    "top": 0,
+                                    "bottom": "auto"
+                                },
+                                "grid": {
+                                    "left": "3%",
+                                    "right": "4%",
+                                    "bottom": "3%",
+                                    "containLabel": true,
+                                    "top": 40
+                                },
+                                "xAxis": {
+                                    "type": "category",
+                                    "axisLabel": {
+                                        "formatter": "Tháng {value}"
+                                    }
+                                },
+                                "yAxis": [
+                                    {
+                                        "type": "value",
+                                        "name": "Số lượng đơn hàng",
+                                        "axisLabel": {
+                                            "formatter": "{value}"
+                                        }
+                                    },
+                                    {
+                                        "type": "value",
+                                        "name": "Doanh thu",
+                                        "axisLabel": {
+                                            "formatter": "{value}"
+                                        }
+                                    }
+                                ],
+                                "series": [
+                                    {
+                                        "name": "Số lượng đơn hàng",
+                                        "type": "bar",
+                                        "encode": {
+                                            "x": "month",
+                                            "y": "so_don_hang"
+                                        },
+                                        "yAxisIndex": 0
+                                    },
+                                    {
+                                        "name": "Doanh thu",
+                                        "type": "line",
+                                        "encode": {
+                                            "x": "month",
+                                            "y": "doanh_thu"
+                                        },
+                                        "yAxisIndex": 1
+                                    }
+                                ],
+                                "dataset": {
+                                    "source": [
+                                        [
+                                            "month",
+                                            "so_don_hang",
+                                            "doanh_thu"
+                                        ],
+                                        [
+                                            1.0,
+                                            23503,
+                                            23387647697.0
+                                        ],
+                                        [
+                                            2.0,
+                                            17019,
+                                            14658136450.0
+                                        ],
+                                        [
+                                            3.0,
+                                            22440,
+                                            17138142419.0
+                                        ],
+                                        [
+                                            4.0,
+                                            26408,
+                                            15669548080.0
+                                        ],
+                                        [
+                                            5.0,
+                                            26282,
+                                            15309102244.0
+                                        ],
+                                        [
+                                            6.0,
+                                            22879,
+                                            14973934661.0
+                                        ],
+                                        [
+                                            7.0,
+                                            22451,
+                                            13582081634.0
+                                        ],
+                                        [
+                                            8.0,
+                                            6297,
+                                            3646118997.0
+                                        ]
+                                    ]
+                                }
+                            },
+                            "chart_type": "combo",
+                            "final_response": false
+                        }
+                    ],
+                    "total_prompt_tokens": 25416,
+                    "total_completion_tokens": 1716,
+                    "api_calls_count": 4
+                }
+            },
+            {
+                "node": "format",
+                "updates": {
+                    "final_answer": "### 1. Tóm tắt điều hành\n\nTrong năm nay, tổng số lượng đơn hàng đạt 167.379 với tổng doanh thu là 118,36 tỷ VNĐ. Tháng 1 ghi nhận mức doanh thu cao nhất (23,39 tỷ VNĐ) và số lượng đơn hàng cao nhất (23.503 đơn), trong khi tháng 8 có mức doanh thu và số lượng đơn hàng thấp nhất (3,65 tỷ VNĐ và 6.297 đơn).\n\n### 2. Thực trạng & Phân tích chi tiết số liệu\n\n*   **Tổng quan:**\n    *   Tổng số đơn hàng trong năm: 167.379 đơn.\n    *   Tổng doanh thu trong năm: 118.357.562.582 VNĐ (khoảng 118,36 tỷ VNĐ).\n    *   Doanh thu trung bình mỗi đơn hàng: 707.135 VNĐ.\n\n*   **Phân tích theo tháng:**\n    *   **Tháng 1:** Dẫn đầu về cả số lượng đơn hàng (23.503 đơn) và doanh thu (23.387.647.697 VNĐ).\n    *   **Tháng 4 và Tháng 5:** Duy trì số lượng đơn hàng ở mức cao (lần lượt 26.408 và 26.282 đơn), nhưng doanh thu có xu hướng giảm so với tháng 1 (15.669.548.080 VNĐ và 15.309.102.244 VNĐ).\n    *   **Tháng 8:** Ghi nhận mức thấp nhất về cả số lượng đơn hàng (6.297 đơn) và doanh thu (3.646.118.997 VNĐ), cho thấy sự sụt giảm đáng kể so với các tháng trước đó.\n\n### 3. Đánh giá tác động & Bối cảnh kinh doanh\n\n*   **Xu hướng giảm doanh thu từ Quý 2:** Mặc dù số lượng đơn hàng trong tháng 4 và 5 vẫn cao, doanh thu lại không tăng tương ứng, thậm chí có xu hướng giảm dần từ tháng 1. Điều này cho thấy giá trị trung bình mỗi đơn hàng đang có dấu hiệu giảm, có thể do thay đổi trong cơ cấu sản phẩm bán ra, chính sách giá, hoặc hành vi mua sắm của khách hàng.\n*   **Sụt giảm mạnh trong Tháng 8:** Sự sụt giảm đột ngột và đáng kể về cả số lượng đơn hàng và doanh thu trong tháng 8 cần được xem xét kỹ lưỡng. Đây có thể là dấu hiệu của các yếu tố mùa vụ, sự kiện thị trường bất lợi, hoặc vấn đề nội bộ trong hoạt động kinh doanh (ví dụ: gián đoạn chuỗi cung ứng, vấn đề vận hành, hoặc chiến dịch marketing không hiệu quả).\n*   **Cơ hội tối ưu hóa:** Tháng 1 cho thấy tiềm năng doanh thu cao nhất, có thể liên quan đến các dịp lễ, tết hoặc chiến dịch bán hàng đầu năm. Việc phân tích sâu hơn các yếu tố thành công của tháng này có thể giúp định hình chiến lược cho các giai đoạn khác trong năm.\n\n### 4. Đề xuất giải pháp & Kế hoạch hành động\n\n1.  **Giải pháp thực thi ngắn hạn:**\n    *   **Phân tích nguyên nhân sụt giảm Tháng 8:** Khẩn trương điều tra nguyên nhân cụ thể dẫn đến sự sụt giảm mạnh về đơn hàng và doanh thu trong tháng 8. Cần xem xét các yếu tố như: tình hình kinh tế vĩ mô, hoạt động của đối thủ cạnh tranh, các chiến dịch marketing/khuyến mãi trong tháng, hoặc các vấn đề vận hành nội bộ.\n    *   **Đánh giá giá trị đơn hàng trung bình:** Phân tích chi tiết giá trị trung bình mỗi đơn hàng qua từng tháng để xác định các sản phẩm/dịch vụ có doanh số giảm và điều chỉnh chiến lược giá hoặc danh mục sản phẩm.\n\n2.  **Giải pháp tối ưu trung - dài hạn:**\n    *   **Tối ưu hóa chiến lược theo mùa:** Dựa trên dữ liệu tháng 1, nghiên cứu các yếu tố thành công (chiến dịch marketing, sản phẩm chủ lực, chính sách giá) để xây dựng kế hoạch kinh doanh và marketing hiệu quả hơn cho các giai đoạn cao điểm tương tự trong tương lai.\n    *   **Nghiên cứu hành vi khách hàng:** Thực hiện khảo sát hoặc phân tích dữ liệu khách hàng để hiểu rõ hơn về sự thay đổi trong hành vi mua sắm, đặc biệt là xu hướng giảm giá trị đơn hàng trung bình. Từ đó, phát triển các gói sản phẩm, chương trình khuyến mãi phù hợp để kích thích doanh số.\n    *   **Kiểm soát và cải thiện hiệu suất vận hành:** Rà soát quy trình vận hành, chuỗi cung ứng để đảm bảo không có sự gián đoạn ảnh hưởng đến khả năng xử lý đơn hàng và giao nhận, đặc biệt trong các tháng có biến động lớn.",
+                    "events_to_yield": [
+                        {
+                            "type": "ai_response",
+                            "final_response": true,
+                            "message": "### 1. Tóm tắt điều hành\n\nTrong năm nay, tổng số lượng đơn hàng đạt 167.379 với tổng doanh thu là 118,36 tỷ VNĐ. Tháng 1 ghi nhận mức doanh thu cao nhất (23,39 tỷ VNĐ) và số lượng đơn hàng cao nhất (23.503 đơn), trong khi tháng 8 có mức doanh thu và số lượng đơn hàng thấp nhất (3,65 tỷ VNĐ và 6.297 đơn).\n\n### 2. Thực trạng & Phân tích chi tiết số liệu\n\n*   **Tổng quan:**\n    *   Tổng số đơn hàng trong năm: 167.379 đơn.\n    *   Tổng doanh thu trong năm: 118.357.562.582 VNĐ (khoảng 118,36 tỷ VNĐ).\n    *   Doanh thu trung bình mỗi đơn hàng: 707.135 VNĐ.\n\n*   **Phân tích theo tháng:**\n    *   **Tháng 1:** Dẫn đầu về cả số lượng đơn hàng (23.503 đơn) và doanh thu (23.387.647.697 VNĐ).\n    *   **Tháng 4 và Tháng 5:** Duy trì số lượng đơn hàng ở mức cao (lần lượt 26.408 và 26.282 đơn), nhưng doanh thu có xu hướng giảm so với tháng 1 (15.669.548.080 VNĐ và 15.309.102.244 VNĐ).\n    *   **Tháng 8:** Ghi nhận mức thấp nhất về cả số lượng đơn hàng (6.297 đơn) và doanh thu (3.646.118.997 VNĐ), cho thấy sự sụt giảm đáng kể so với các tháng trước đó.\n\n### 3. Đánh giá tác động & Bối cảnh kinh doanh\n\n*   **Xu hướng giảm doanh thu từ Quý 2:** Mặc dù số lượng đơn hàng trong tháng 4 và 5 vẫn cao, doanh thu lại không tăng tương ứng, thậm chí có xu hướng giảm dần từ tháng 1. Điều này cho thấy giá trị trung bình mỗi đơn hàng đang có dấu hiệu giảm, có thể do thay đổi trong cơ cấu sản phẩm bán ra, chính sách giá, hoặc hành vi mua sắm của khách hàng.\n*   **Sụt giảm mạnh trong Tháng 8:** Sự sụt giảm đột ngột và đáng kể về cả số lượng đơn hàng và doanh thu trong tháng 8 cần được xem xét kỹ lưỡng. Đây có thể là dấu hiệu của các yếu tố mùa vụ, sự kiện thị trường bất lợi, hoặc vấn đề nội bộ trong hoạt động kinh doanh (ví dụ: gián đoạn chuỗi cung ứng, vấn đề vận hành, hoặc chiến dịch marketing không hiệu quả).\n*   **Cơ hội tối ưu hóa:** Tháng 1 cho thấy tiềm năng doanh thu cao nhất, có thể liên quan đến các dịp lễ, tết hoặc chiến dịch bán hàng đầu năm. Việc phân tích sâu hơn các yếu tố thành công của tháng này có thể giúp định hình chiến lược cho các giai đoạn khác trong năm.\n\n### 4. Đề xuất giải pháp & Kế hoạch hành động\n\n1.  **Giải pháp thực thi ngắn hạn:**\n    *   **Phân tích nguyên nhân sụt giảm Tháng 8:** Khẩn trương điều tra nguyên nhân cụ thể dẫn đến sự sụt giảm mạnh về đơn hàng và doanh thu trong tháng 8. Cần xem xét các yếu tố như: tình hình kinh tế vĩ mô, hoạt động của đối thủ cạnh tranh, các chiến dịch marketing/khuyến mãi trong tháng, hoặc các vấn đề vận hành nội bộ.\n    *   **Đánh giá giá trị đơn hàng trung bình:** Phân tích chi tiết giá trị trung bình mỗi đơn hàng qua từng tháng để xác định các sản phẩm/dịch vụ có doanh số giảm và điều chỉnh chiến lược giá hoặc danh mục sản phẩm.\n\n2.  **Giải pháp tối ưu trung - dài hạn:**\n    *   **Tối ưu hóa chiến lược theo mùa:** Dựa trên dữ liệu tháng 1, nghiên cứu các yếu tố thành công (chiến dịch marketing, sản phẩm chủ lực, chính sách giá) để xây dựng kế hoạch kinh doanh và marketing hiệu quả hơn cho các giai đoạn cao điểm tương tự trong tương lai.\n    *   **Nghiên cứu hành vi khách hàng:** Thực hiện khảo sát hoặc phân tích dữ liệu khách hàng để hiểu rõ hơn về sự thay đổi trong hành vi mua sắm, đặc biệt là xu hướng giảm giá trị đơn hàng trung bình. Từ đó, phát triển các gói sản phẩm, chương trình khuyến mãi phù hợp để kích thích doanh số.\n    *   **Kiểm soát và cải thiện hiệu suất vận hành:** Rà soát quy trình vận hành, chuỗi cung ứng để đảm bảo không có sự gián đoạn ảnh hưởng đến khả năng xử lý đơn hàng và giao nhận, đặc biệt trong các tháng có biến động lớn."
+                        },
+                        {
+                            "type": "metrics",
+                            "data": {
+                                "prompt_tokens": 25416,
+                                "completion_tokens": 1716,
+                                "total_tokens": 27132,
+                                "cost_usd": 0.0,
+                                "api_calls_count": 4,
+                                "engine_version": "v4.5"
+                            },
+                            "final_response": false
+                        }
+                    ]
+                }
+            }
+        ]
+    }
+}

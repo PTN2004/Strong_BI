@@ -8,7 +8,8 @@ import {
   Waypoints,
   Sliders,
   Menu,
-  MessageSquare
+  MessageSquare,
+  History
 } from 'lucide-react';
 import {
   Tooltip,
@@ -126,10 +127,18 @@ const Sidebar = ({ className, onSchemaClick, isSchemaOpen, isCollapsed = false, 
         <SidebarIcon
           icon={MessageSquare}
           label="Dashboard"
-          active={location.pathname === '/'}
+          active={location.pathname === '/' || location.pathname === '/v4/dashboard'}
           onClick={() => navigate('/')}
           isCollapsed={isCollapsed}
           testId="dashboard-link"
+        />
+        <SidebarIcon
+          icon={History}
+          label="Lịch sử hội thoại"
+          active={location.pathname === '/conversations'}
+          onClick={() => navigate('/conversations')}
+          isCollapsed={isCollapsed}
+          testId="conversations-link"
         />
         <SidebarIcon
           icon={Waypoints}

@@ -20,6 +20,7 @@ from api.core.text2sql import (
 
 from pydantic import BaseModel, Field
 from api.core.graph_text2sql_v4 import run_query_graph_v4
+from api.core.graph_text2sql_v4_5 import run_query_graph_v4_5
 from api.core.graph_text2sql_v5 import run_query_graph_v5
 from api.loaders.semantic_loader import load_semantic_layer, get_semantic_layer, delete_semantic_node
 from api.core.pipeline import (
@@ -32,7 +33,7 @@ from api.core.pipeline import (
 )
 from api.core.errors import GraphNotFoundError, InternalError, InvalidArgumentError
 from api.retriever import Retriever
-from api.auth.user_management import token_required, roles_allowed
+from api.auth.user_management import token_required, roles_allowed, require_workspace
 from api.graph_db.factory import GraphDatabaseFactory
 from api.auth.models import UserRole
 from api.routes.tokens import UNAUTHORIZED_RESPONSE
@@ -142,8 +143,9 @@ class CypherRequest(BaseModel):
     responses={401: UNAUTHORIZED_RESPONSE}
 )
 @token_required
+@require_workspace
 async def list_graphs(request: Request):
-    graphs = await list_databases(request.state.user_id, GENERAL_PREFIX)
+    graphs = await list_databases(request.state.workspace_id, GENERAL_PREFIX)
     return JSONResponse(content=graphs)
 
 
@@ -153,12 +155,13 @@ async def list_graphs(request: Request):
     responses={401: UNAUTHORIZED_RESPONSE}
 )
 @token_required
+@require_workspace
 @roles_allowed(UserRole.ADMIN, UserRole.ANALYST)
 async def get_graph_schema_metadata(request: Request, graph_id: str):
     try:
         from api.core.text2sql import get_schema_metadata
         db = await GraphDatabaseFactory.get_instance()
-        metadata = await get_schema_metadata(request.state.user_id, graph_id, db=db)
+        metadata = await get_schema_metadata(request.state.workspace_id, graph_id, db=db)
         return JSONResponse(content={"metadata": metadata})
     except GraphNotFoundError:
         return JSONResponse(content={"error": "Database not found"}, status_code=404)
@@ -173,13 +176,14 @@ async def get_graph_schema_metadata(request: Request, graph_id: str):
     responses={401: UNAUTHORIZED_RESPONSE}
 )
 @token_required
+@require_workspace
 @roles_allowed(UserRole.ADMIN, UserRole.ANALYST)
 async def update_graph_schema_metadata(request: Request, graph_id: str):
     try:
         data = await request.json()
         from api.core.text2sql import update_schema_metadata
         db = await GraphDatabaseFactory.get_instance()
-        result = await update_schema_metadata(request.state.user_id, graph_id, data, db=db)
+        result = await update_schema_metadata(request.state.workspace_id, graph_id, data, db=db)
         return JSONResponse(content=result)
     except GraphNotFoundError:
         return JSONResponse(content={"error": "Database not found"}, status_code=404)
@@ -196,13 +200,14 @@ async def update_graph_schema_metadata(request: Request, graph_id: str):
 )
 
 @token_required
+@require_workspace
 async def get_graph_data(
     request: Request, graph_id: str
 ):  
 
     try:
         db = await GraphDatabaseFactory.get_instance()
-        schema = await get_schema(request.state.user_id, graph_id, db=db)
+        schema = await get_schema(request.state.workspace_id, graph_id, db=db)
         return JSONResponse(content=schema)
     except GraphNotFoundError as gnfe:
         logging.warning("Graph not found: %s", str(gnfe))
@@ -215,8 +220,88 @@ async def get_graph_data(
         )
 
 
+class SuggestQuestionsRequest(BaseModel):
+    focus: str = ""
+    custom_api_key: str | None = None
+    custom_model: str | None = None
+    custom_api_base: str | None = None
+
+
+@graphs_router.post(
+    "/{graph_id}/suggest_questions",
+    operation_id="suggest_questions",
+    responses={401: UNAUTHORIZED_RESPONSE}
+)
+@token_required
+@require_workspace
+async def suggest_graph_questions(
+    request: Request,
+    graph_id: str,
+    payload: SuggestQuestionsRequest = None,
+):
+    try:
+        from api.agents.question_recommender_agent import QuestionRecommenderAgent
+        from api.core.text2sql import get_schema_metadata
+        
+        db = await GraphDatabaseFactory.get_instance()
+        metadata = await get_schema_metadata(request.state.workspace_id, graph_id, db=db)
+        
+        # Build schema summary for the agent
+        tables_desc = []
+        if isinstance(metadata, dict):
+            for tbl_name, tbl_info in metadata.items():
+                if isinstance(tbl_info, dict):
+                    cols = tbl_info.get("columns", [])
+                    col_names = [c.get("name") if isinstance(c, dict) else str(c) for c in cols]
+                    tables_desc.append(f"Table `{tbl_name}`: columns [{', '.join(col_names[:15])}]")
+                elif isinstance(tbl_info, list):
+                    tables_desc.append(f"Table `{tbl_name}`: columns [{', '.join(str(c) for c in tbl_info[:15])}]")
+        
+        schema_context = "\n".join(tables_desc) if tables_desc else "Orders, OrderItems, Products, Customers, Sales"
+        
+        # Build clean tables list for UI schema explorer
+        tables_summary = []
+        if isinstance(metadata, dict):
+            for tbl_name, tbl_info in metadata.items():
+                if isinstance(tbl_info, dict):
+                    cols = tbl_info.get("columns", [])
+                    col_names = [c.get("name") if isinstance(c, dict) else str(c) for c in cols]
+                    tables_summary.append({
+                        "name": tbl_name,
+                        "columns_count": len(cols),
+                        "sample_columns": col_names[:6],
+                    })
+                elif isinstance(tbl_info, list):
+                    tables_summary.append({
+                        "name": tbl_name,
+                        "columns_count": len(tbl_info),
+                        "sample_columns": [str(c) for c in tbl_info[:6]],
+                    })
+
+        focus = payload.focus if payload else ""
+        custom_key = payload.custom_api_key if payload else None
+        custom_model = payload.custom_model if payload else None
+        custom_base = payload.custom_api_base if payload else None
+        
+        agent = QuestionRecommenderAgent(
+            custom_model=custom_model,
+            custom_api_key=custom_key,
+            custom_api_base=custom_base,
+        )
+        recommendations = agent.recommend_questions(schema_context=schema_context, user_focus=focus)
+        return JSONResponse(content={
+            "recommendations": recommendations, 
+            "graph_id": graph_id,
+            "tables_summary": tables_summary,
+        })
+    except Exception as e:
+        logging.error("Error suggesting questions: %s", str(e))
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+
+
 @graphs_router.post("", responses={401: UNAUTHORIZED_RESPONSE})
 @token_required
+@require_workspace
 @roles_allowed(UserRole.ADMIN, UserRole.ANALYST)
 async def load_graph(
     request: Request, data: GraphData = None, file: UploadFile = File(None)
@@ -253,6 +338,7 @@ async def load_graph(
     responses={401: UNAUTHORIZED_RESPONSE}
 )
 @token_required
+@require_workspace
 @roles_allowed(UserRole.ADMIN, UserRole.ANALYST)
 async def query_graph(
     request: Request, graph_id: str, chat_data: ChatRequest
@@ -265,7 +351,7 @@ async def query_graph(
             chat_data.custom_api_key = user.get("llm_api_key")
             chat_data.custom_api_base = user.get("llm_api_base")
             
-        graph_id = graph_name(request.state.user_id, graph_id)
+        graph_id = graph_name(request.state.workspace_id, graph_id)
         validate_and_truncate_chat(chat_data)
         validate_custom_model(getattr(chat_data, "custom_model", None))
     except InvalidArgumentError as iae:
@@ -276,7 +362,7 @@ async def query_graph(
         try:
             db = await GraphDatabaseFactory.get_instance()
             async for chunk in _serialize_pipeline(
-                run_query(request.state.user_id, graph_id, chat_data, db=db)
+                run_query(request.state.workspace_id, graph_id, chat_data, db=db)
             ):
                 yield chunk
         except Exception as e: 
@@ -302,6 +388,7 @@ async def query_graph(
     responses={401: UNAUTHORIZED_RESPONSE}
 )
 @token_required
+@require_workspace
 @roles_allowed(UserRole.ADMIN, UserRole.ANALYST)
 async def query_graph_v4(
     request: Request, graph_id: str, chat_data: ChatRequest
@@ -313,24 +400,137 @@ async def query_graph_v4(
             chat_data.custom_api_key = user.get("llm_api_key")
             chat_data.custom_api_base = user.get("llm_api_base")
             
-        graph_id = graph_name(request.state.user_id, graph_id)
+        graph_id = graph_name(request.state.workspace_id, graph_id)
         validate_and_truncate_chat(chat_data)
         validate_custom_model(getattr(chat_data, "custom_model", None))
     except InvalidArgumentError as iae:
         logging.warning("Invalid argument in query: %s", str(iae))
         return JSONResponse(content={"error": "Invalid query request"}, status_code=400)
 
+    # Capture FULL trace (trước khi lọc quyền) để ghi log server-side cho admin trace
+    from api.core.chat_log import ThreadCapture
+    capture = ThreadCapture(
+        thread_id=getattr(chat_data, "thread_id", None),
+        user_id=request.state.user_id,
+        user_email=request.state.user.get("email", ""),
+        graph_id=graph_id,
+        query=chat_data.chat[-1] if chat_data.chat else "",
+    )
+    # Gắn thêm workspace_id nếu mô hình DB log yêu cầu (hiện ThreadCapture chưa định nghĩa)
+    if hasattr(capture, "workspace_id"):
+        capture.workspace_id = request.state.workspace_id
+
+    def _event_allowed(chunk: str) -> bool:
+        try:
+            event = json.loads(chunk.split(MESSAGE_DELIMITER)[0])
+        except Exception:
+            return True
+        capture.record(event)
+        return True
+
     async def stream():
         try:
             db = await GraphDatabaseFactory.get_instance()
             async for chunk in _serialize_pipeline(
-                run_query_graph_v4(request.state.user_id, graph_id, chat_data, db=db)
+                run_query_graph_v4(request.state.workspace_id, graph_id, chat_data, db=db)
             ):
-                yield chunk
+                if _event_allowed(chunk):
+                    # Set engine_version for metrics if present
+                    try:
+                        event = json.loads(chunk.split(MESSAGE_DELIMITER)[0])
+                        if event.get("type") == "metrics":
+                            event["data"]["engine_version"] = "v4"
+                            capture.record(event)
+                    except Exception:
+                        pass
+                    yield chunk
+            await capture.save()
         except Exception as e: 
             import traceback
             tb = traceback.format_exc()
             logging.exception("Streaming query failed")
+            capture.record({"type": "error", "message": str(e)})
+            await capture.save()
+            yield json.dumps({
+                "type": "error",
+                "final_response": True,
+                "message": f"Internal error while processing query: {str(e)}",
+            }) + MESSAGE_DELIMITER
+
+    return StreamingResponse(stream(), media_type="application/json")
+
+
+@graphs_router.post(
+    "/{graph_id}/v4_5",
+    operation_id="query_database_v4_5",
+    tags=["mcp_tool"],
+    responses={401: UNAUTHORIZED_RESPONSE}
+)
+@graphs_router.post(
+    "/{graph_id}/v4.5",
+    include_in_schema=False
+)
+@token_required
+@require_workspace
+@roles_allowed(UserRole.ADMIN, UserRole.ANALYST)
+async def query_graph_v4_5(
+    request: Request, graph_id: str, chat_data: ChatRequest
+):  
+    try:
+        user = getattr(request.state, "user", {})
+        if not chat_data.custom_model and user.get("llm_model"):
+            chat_data.custom_model = _get_model_with_prefix(user)
+            chat_data.custom_api_key = user.get("llm_api_key")
+            chat_data.custom_api_base = user.get("llm_api_base")
+            
+        graph_id = graph_name(request.state.workspace_id, graph_id)
+        validate_and_truncate_chat(chat_data)
+        validate_custom_model(getattr(chat_data, "custom_model", None))
+    except InvalidArgumentError as iae:
+        logging.warning("Invalid argument in query: %s", str(iae))
+        return JSONResponse(content={"error": "Invalid query request"}, status_code=400)
+
+    from api.core.chat_log import ThreadCapture
+    capture = ThreadCapture(
+        thread_id=getattr(chat_data, "thread_id", None),
+        user_id=request.state.user_id,
+        user_email=request.state.user.get("email", ""),
+        graph_id=graph_id,
+        query=chat_data.chat[-1] if chat_data.chat else "",
+    )
+    if hasattr(capture, "workspace_id"):
+        capture.workspace_id = request.state.workspace_id
+
+    def _event_allowed(chunk: str) -> bool:
+        try:
+            event = json.loads(chunk.split(MESSAGE_DELIMITER)[0])
+        except Exception:
+            return True
+        capture.record(event)
+        return True
+
+    async def stream():
+        try:
+            db = await GraphDatabaseFactory.get_instance()
+            async for chunk in _serialize_pipeline(
+                run_query_graph_v4_5(request.state.workspace_id, graph_id, chat_data, db=db)
+            ):
+                if _event_allowed(chunk):
+                    try:
+                        event = json.loads(chunk.split(MESSAGE_DELIMITER)[0])
+                        if event.get("type") == "metrics":
+                            event["data"]["engine_version"] = "v4.5"
+                            capture.record(event)
+                    except Exception:
+                        pass
+                    yield chunk
+            await capture.save()
+        except Exception as e: 
+            import traceback
+            tb = traceback.format_exc()
+            logging.exception("Streaming query failed")
+            capture.record({"type": "error", "message": str(e)})
+            await capture.save()
             yield json.dumps({
                 "type": "error",
                 "final_response": True,
@@ -347,6 +547,7 @@ async def query_graph_v4(
     responses={401: UNAUTHORIZED_RESPONSE}
 )
 @token_required
+@require_workspace
 @roles_allowed(UserRole.ADMIN, UserRole.ANALYST)
 async def query_graph_v5(
     request: Request, graph_id: str, chat_data: ChatRequest
@@ -358,24 +559,52 @@ async def query_graph_v5(
             chat_data.custom_api_key = user.get("llm_api_key")
             chat_data.custom_api_base = user.get("llm_api_base")
             
-        graph_id = graph_name(request.state.user_id, graph_id)
+        graph_id = graph_name(request.state.workspace_id, graph_id)
         validate_and_truncate_chat(chat_data)
         validate_custom_model(getattr(chat_data, "custom_model", None))
     except InvalidArgumentError as iae:
         logging.warning("Invalid argument in query: %s", str(iae))
         return JSONResponse(content={"error": "Invalid query request"}, status_code=400)
 
+    from api.core.chat_log import ThreadCapture
+    capture = ThreadCapture(
+        thread_id=getattr(chat_data, "thread_id", None),
+        user_id=request.state.user_id,
+        user_email=request.state.user.get("email", ""),
+        graph_id=graph_id,
+        query=chat_data.chat[-1] if chat_data.chat else "",
+    )
+    if hasattr(capture, "workspace_id"):
+        capture.workspace_id = request.state.workspace_id
+
+    def _event_allowed(chunk: str) -> bool:
+        try:
+            event = json.loads(chunk.split(MESSAGE_DELIMITER)[0])
+        except Exception:
+            return True
+        
+        # Inject engine_version for metrics
+        if event.get("type") == "metrics":
+            event["data"]["engine_version"] = "v5"
+            
+        capture.record(event)
+        return True
+
     async def stream():
         try:
             db = await GraphDatabaseFactory.get_instance()
             async for chunk in _serialize_pipeline(
-                run_query_graph_v5(request.state.user_id, graph_id, chat_data, db=db)
+                run_query_graph_v5(request.state.workspace_id, graph_id, chat_data, db=db)
             ):
-                yield chunk
+                if _event_allowed(chunk):
+                    yield chunk
+            await capture.save()
         except Exception as e: 
             import traceback
             tb = traceback.format_exc()
             logging.exception("Streaming query failed")
+            capture.record({"type": "error", "message": str(e)})
+            await capture.save()
             yield json.dumps({
                 "type": "error",
                 "final_response": True,
@@ -386,6 +615,7 @@ async def query_graph_v5(
 
 @graphs_router.post("/{graph_id}/confirm", responses={401: UNAUTHORIZED_RESPONSE})
 @token_required
+@require_workspace
 @roles_allowed(UserRole.ADMIN, UserRole.ANALYST)
 async def confirm_destructive_operation(
     request: Request,
@@ -406,7 +636,7 @@ async def confirm_destructive_operation(
             confirm_data.custom_api_key = user.get("llm_api_key")
             confirm_data.custom_api_base = user.get("llm_api_base")
             
-        namespaced = graph_name(request.state.user_id, graph_id)
+        namespaced = graph_name(request.state.workspace_id, graph_id)
         if is_general_graph(namespaced):
             raise InvalidArgumentError(
                 "Destructive operations are not allowed on demo graphs"
@@ -421,7 +651,7 @@ async def confirm_destructive_operation(
     async def stream():
         try:
             async for chunk in _serialize_pipeline(
-                run_confirmed(request.state.user_id, graph_id, confirm_data)
+                run_confirmed(request.state.workspace_id, graph_id, confirm_data)
             ):
                 yield chunk
         except Exception: 
@@ -437,11 +667,12 @@ async def confirm_destructive_operation(
 
 @graphs_router.post("/{graph_id}/refresh", responses={401: UNAUTHORIZED_RESPONSE})
 @token_required
+@require_workspace
 @roles_allowed(UserRole.ADMIN, UserRole.ANALYST)
 async def refresh_graph_schema(request: Request, graph_id: str):
     try:
         db = await GraphDatabaseFactory.get_instance()
-        generator = await refresh_database_schema(request.state.user_id, graph_id, db=db)
+        generator = await refresh_database_schema(request.state.workspace_id, graph_id, db=db)
         return StreamingResponse(generator, media_type="application/json")
     except (InternalError, InvalidArgumentError) as e:
         if isinstance(e, InternalError):
@@ -462,10 +693,11 @@ async def refresh_graph_schema(request: Request, graph_id: str):
     responses={401: UNAUTHORIZED_RESPONSE}
 )
 @token_required
+@require_workspace
 @roles_allowed(UserRole.ADMIN, UserRole.ANALYST)
 async def execute_cypher(request: Request, graph_id: str, data: CypherRequest):
     try:
-        namespaced = graph_name(request.state.user_id, graph_id)
+        namespaced = graph_name(request.state.workspace_id, graph_id)
         db = await GraphDatabaseFactory.get_instance()
         
         from api.core.db_resolver import resolver_db
@@ -490,9 +722,10 @@ async def execute_cypher(request: Request, graph_id: str, data: CypherRequest):
     responses={401: UNAUTHORIZED_RESPONSE}
 )
 @token_required
+@require_workspace
 async def explore_graph(request: Request, graph_id: str, limit: int = 100):
     try:
-        namespaced = graph_name(request.state.user_id, graph_id)
+        namespaced = graph_name(request.state.workspace_id, graph_id)
         db = await GraphDatabaseFactory.get_instance()
         
         from api.core.db_resolver import resolver_db
@@ -517,12 +750,13 @@ async def explore_graph(request: Request, graph_id: str, limit: int = 100):
 
 @graphs_router.delete("/{graph_id}", responses={401: UNAUTHORIZED_RESPONSE})
 @token_required
+@require_workspace
 @roles_allowed(UserRole.ADMIN, UserRole.ANALYST)
 async def delete_graph(request: Request, graph_id: str):
 
     try:
         db = await GraphDatabaseFactory.get_instance()
-        result = await delete_database(request.state.user_id, graph_id, db=db)
+        result = await delete_database(request.state.workspace_id, graph_id, db=db)
         return JSONResponse(content=result)
 
     except InvalidArgumentError as iae:
@@ -546,13 +780,14 @@ class UserRulesRequest(BaseModel):
 
 @graphs_router.get("/{graph_id}/user-rules", responses={401: UNAUTHORIZED_RESPONSE})
 @token_required
+@require_workspace
 async def get_graph_user_rules(request: Request, graph_id: str):
    
     try:
-        full_graph_id = graph_name(request.state.user_id, graph_id)
+        full_graph_id = graph_name(request.state.workspace_id, graph_id)
         db = await GraphDatabaseFactory.get_instance()
         retriever = Retriever(graph_id=full_graph_id, db=db)
-        user_rules = await retriever.get_user_rules(full_graph_id)
+        user_rules = await retriever.get_user_rules()
         logging.info("Retrieved user rules length: %d", len(user_rules) if user_rules else 0)
         return JSONResponse(content={"user_rules": user_rules})
     except GraphNotFoundError:
@@ -564,6 +799,7 @@ async def get_graph_user_rules(request: Request, graph_id: str):
 
 @graphs_router.put("/{graph_id}/user-rules", responses={401: UNAUTHORIZED_RESPONSE})
 @token_required
+@require_workspace
 @roles_allowed(UserRole.ADMIN, UserRole.ANALYST)
 async def update_graph_user_rules(request: Request, graph_id: str, data: UserRulesRequest):
     """Update user rules for the specified graph."""
@@ -578,7 +814,7 @@ async def update_graph_user_rules(request: Request, graph_id: str, data: UserRul
         logging.info(
             "Received request to update user rules, content length: %d", len(data.user_rules)
         )
-        full_graph_id = graph_name(request.state.user_id, graph_id)
+        full_graph_id = graph_name(request.state.workspace_id, graph_id)
         db = await GraphDatabaseFactory.get_instance()
         retriever = Retriever(graph_id=full_graph_id, db=db)
         
@@ -599,6 +835,7 @@ async def update_graph_user_rules(request: Request, graph_id: str, data: UserRul
     responses={401: UNAUTHORIZED_RESPONSE}
 )
 @token_required
+@require_workspace
 @roles_allowed(UserRole.ADMIN, UserRole.ANALYST)
 async def upload_semantic_layer_endpoint(
     request: Request, graph_id: str, payload: SemanticPayload
@@ -607,7 +844,7 @@ async def upload_semantic_layer_endpoint(
     Upload semantic business logic (Metrics, Dimensions) for the graph.
     """
     try:
-        namespaced = graph_name(request.state.user_id, graph_id)
+        namespaced = graph_name(request.state.workspace_id, graph_id)
         db = await GraphDatabaseFactory.get_instance()
         
         # Chuyển payload sang dict cho semantic_loader
@@ -628,6 +865,7 @@ async def upload_semantic_layer_endpoint(
     responses={401: UNAUTHORIZED_RESPONSE}
 )
 @token_required
+@require_workspace
 @roles_allowed(UserRole.ADMIN, UserRole.ANALYST)
 async def get_semantic_layer_endpoint(
     request: Request, graph_id: str
@@ -636,7 +874,7 @@ async def get_semantic_layer_endpoint(
     Retrieve semantic business logic (Metrics, Dimensions) for the graph.
     """
     try:
-        namespaced = graph_name(request.state.user_id, graph_id)
+        namespaced = graph_name(request.state.workspace_id, graph_id)
         db = await GraphDatabaseFactory.get_instance()
         
         data = await get_semantic_layer(namespaced, db=db)
@@ -656,6 +894,7 @@ async def get_semantic_layer_endpoint(
     responses={401: UNAUTHORIZED_RESPONSE}
 )
 @token_required
+@require_workspace
 @roles_allowed(UserRole.ADMIN, UserRole.ANALYST)
 async def delete_semantic_node_endpoint(
     request: Request, graph_id: str, node_type: str, node_name: str
@@ -664,7 +903,7 @@ async def delete_semantic_node_endpoint(
     Delete a semantic node (metric or dimension) from the graph.
     """
     try:
-        namespaced = graph_name(request.state.user_id, graph_id)
+        namespaced = graph_name(request.state.workspace_id, graph_id)
         db = await GraphDatabaseFactory.get_instance()
         
         await delete_semantic_node(namespaced, node_type, node_name, db=db)

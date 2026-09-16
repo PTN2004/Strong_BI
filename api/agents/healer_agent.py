@@ -305,12 +305,14 @@ Return ONLY the raw executable SQL query without markdown formatting or explanat
 """
         messages = [{"role": "user", "content": prompt}]
         from api.agents.utils import run_completion
-        fixed_sql = run_completion(
+        fixed_sql, usage = run_completion(
             messages=messages,
             custom_model=self.custom_model,
             custom_api_key=self.custom_api_key,
-            temperature=0.0
-        ).strip()
+            temperature=0.0,
+            return_usage=True
+        )
+        fixed_sql = fixed_sql.strip()
         
         if fixed_sql.startswith("```sql"):
             fixed_sql = fixed_sql[6:]
@@ -319,7 +321,8 @@ Return ONLY the raw executable SQL query without markdown formatting or explanat
         if fixed_sql.endswith("```"):
             fixed_sql = fixed_sql[:-3]
             
-        return fixed_sql.strip()
+            
+        return fixed_sql.strip(), usage
 
     def _analyze_error(self, error_message: str, database_type: str) -> str:
         """Analyze error message and provide targeted hints."""

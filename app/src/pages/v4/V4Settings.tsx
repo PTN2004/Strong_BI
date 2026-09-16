@@ -3,6 +3,7 @@ import { useSettings, AIVendor } from "@/contexts/SettingsContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDatabase } from "@/contexts/DatabaseContext";
 import { DatabaseService } from "@/services/database";
+import { useWorkspace } from "@/contexts/WorkspaceContext";
 import { AuthService } from "@/services/auth";
 import { TokenService, Token } from "@/services/tokens";
 import { useToast } from "@/hooks/use-toast";
@@ -23,7 +24,7 @@ import {
 import { useApiKeyValidation } from "@/hooks/useApiKeyValidation";
 import { AI_VENDORS, getVendorConfig, DEFAULT_MODEL } from "@/utils/vendorConfig";
 
-type Tab = "ai" | "team" | "dev" | "system";
+type Tab = "ai" | "team" | "dev" | "system" | "workspace";
 
 const V4Settings = () => {
   const [activeTab, setActiveTab] = useState<Tab>("ai");
@@ -33,6 +34,7 @@ const V4Settings = () => {
     setVendor, setApiKey, setModelName, setIsApiKeyValid, setCustomEndpoint, clearSettings 
   } = useSettings();
   const { user } = useAuth();
+  const { activeWorkspace, refreshWorkspaces } = useWorkspace();
   const { selectedGraph } = useDatabase();
   const { toast } = useToast();
 
@@ -315,6 +317,13 @@ const V4Settings = () => {
             onClick={() => setActiveTab('team')}
           >
             <Users className="w-4 h-4" /> Team Management
+          </button>
+
+          <button
+            className={cn("w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium text-sm", activeTab === 'workspace' ? "bg-primary/10 text-primary font-bold shadow-sm" : "text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800")}
+            onClick={() => setActiveTab('workspace')}
+          >
+            <BarChart3 className="w-4 h-4" /> Business Context
           </button>
 
           <button
@@ -633,6 +642,67 @@ const V4Settings = () => {
                       </div>
                     )}
                   </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* TAB: WORKSPACE / BUSINESS CONTEXT */}
+          {activeTab === 'workspace' && (
+            <div className="space-y-6 animate-in fade-in duration-300">
+              <div className="bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-3xl p-8 shadow-sm">
+                <div className="flex items-center gap-3 border-b border-gray-100 dark:border-gray-800 pb-6 mb-6">
+                  <div className="p-3 bg-orange-500/10 text-orange-500 rounded-xl"><BarChart3 className="w-5 h-5" /></div>
+                  <div>
+                    <h3 className="text-xl font-bold">Business Context</h3>
+                    <p className="text-sm text-gray-500">Provide context for AI to generate personalized insights.</p>
+                  </div>
+                </div>
+
+                {!activeWorkspace ? (
+                  <div className="text-center p-8 text-gray-500 border border-dashed rounded-xl">No active workspace selected.</div>
+                ) : (
+                  <form 
+                    className="space-y-6"
+                    onSubmit={async (e) => {
+                      e.preventDefault();
+                      const formData = new FormData(e.currentTarget);
+                      try {
+                        const response = await fetch(`/api/workspaces/${activeWorkspace.id}`, {
+                          method: 'PUT',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            industry: formData.get('industry'),
+                            business_goals: formData.get('business_goals'),
+                            kpi_focus: formData.get('kpi_focus')
+                          })
+                        });
+                        if (!response.ok) throw new Error("Update failed");
+                        await refreshWorkspaces();
+                        toast({ title: 'Success', description: 'Business Context updated successfully' });
+                      } catch (err) {
+                        toast({ title: 'Error', description: 'Failed to update business context', variant: 'destructive' });
+                      }
+                    }}
+                  >
+                    <div className="space-y-2">
+                      <Label className="text-sm font-bold text-gray-700 dark:text-gray-300">Industry / Ngành nghề</Label>
+                      <Input name="industry" defaultValue={activeWorkspace.industry || ''} placeholder="e.g. Retail, E-commerce, Logistics..." className="h-12 rounded-xl" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-bold text-gray-700 dark:text-gray-300">Business Goals / Mục tiêu kinh doanh</Label>
+                      <Textarea name="business_goals" defaultValue={activeWorkspace.business_goals || ''} placeholder="e.g. Tối ưu chi phí vận hành, tăng trưởng khách hàng mới..." className="min-h-[100px] rounded-xl" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-bold text-gray-700 dark:text-gray-300">KPI Focus / Chỉ số trọng tâm</Label>
+                      <Textarea name="kpi_focus" defaultValue={activeWorkspace.kpi_focus || ''} placeholder="e.g. LTV, CAC, Churn Rate, Delivery Time..." className="min-h-[100px] rounded-xl" />
+                    </div>
+                    <div className="flex justify-end pt-4">
+                      <Button type="submit" className="h-12 rounded-xl px-8 shadow-md">
+                        Save Business Context
+                      </Button>
+                    </div>
+                  </form>
                 )}
               </div>
             </div>

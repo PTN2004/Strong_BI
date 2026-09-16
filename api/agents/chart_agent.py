@@ -35,8 +35,10 @@ class ChartAgent:
         1. Return ONLY a valid JSON object. Do not include any markdown styling (like ```json), explanations, or surrounding text.
         2. The JSON object must be a valid ECharts option object that can be passed directly to ECharts.
         3. Use standard ECharts configuration options: 'title' (with 'text'), 'tooltip' (trigger: 'axis' or 'item'), 'legend', and the relevant coordinate systems.
-        4. Populate the chart series and categories dynamically using the actual keys and values from the provided dataset. Ensure numeric columns are mapped to values.
-        5. Choose the most appropriate chart type from the following:
+        4. CRITICAL: For `axisLabel.formatter` or `tooltip.formatter`, DO NOT use Python format strings like `{value:,.0f}`. Only use standard ECharts string templates like `'{value}'` or `'{value} %'`.
+        5. For Bar and Line charts, ensure you configure xAxis and yAxis appropriately.
+        6. Do NOT include markdown blocks like ```json or ```. Return only raw JSON text. Ensure numeric columns are mapped to values.
+        7. Choose the most appropriate chart type from the following:
            - 'line': For trends over time, dates, or sequential continuous categories.
            - 'bar': For comparing quantities across discrete categories (supports grouped/stacked bars if multiple numeric columns exist).
            - 'pie': For composition, distributions, or parts-of-a-whole relations (donut-style is also acceptable). Note: Pie charts do not use xAxis/yAxis.
